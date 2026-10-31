@@ -41,9 +41,9 @@ class MainActivity : ComponentActivity() {
                     var reviewSessionId by remember { mutableStateOf<String?>(null) }
                     when {
                         showCamera -> CameraScreen(onBack = { showCamera = false })
+                        reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
                         showRecords -> RecordsScreen(onBack = { showRecords = false })
                         showAircraft -> AircraftScreen(onBack = { showAircraft = false })
-                        reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
                         else -> HomeScreen(
                             onStartFlight = { showCamera = true },
                             onOpenRecords = { showRecords = true },
@@ -259,8 +259,8 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 OutlinedButton(onClick = { releaseMs = positionMs; message = "已标记出手帧" }) { Text("标记出手帧") }
                 OutlinedButton(onClick = { landingMs = positionMs; message = "已标记落地帧" }) { Text("标记落地帧") }
             }
-            Text("出手：\${releaseMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
-            Text("落地：\${landingMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
+            Text("出手：${releaseMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
+            Text("落地：${landingMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
             if (releaseMs != null && landingMs != null && landingMs!! > releaseMs!!) {
                 Text("按视频时间戳计算：%.3f 秒".format((landingMs!! - releaseMs!!) / 1000.0))
             } else {
