@@ -32,6 +32,8 @@ import com.cpacfly.records.PaperAircraftStore
 import com.cpacfly.video.VideoFrameTimeline
 import java.text.DateFormat
 import java.util.Date
+import java.io.File
+import com.cpacfly.detection.ModelInstaller
 
 
 class MainActivity : ComponentActivity() {
@@ -40,22 +42,60 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var showCamera by remember { mutableStateOf(false) }
-                    var showRecords by remember { mutableStateOf(false) }
-                    var showAircraft by remember { mutableStateOf(false) }
-                    var reviewSessionId by remember { mutableStateOf<String?>(null) }
-                    when {
-                        showCamera -> CameraScreen(onBack = { showCamera = false })
-                        reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
-                        showRecords -> RecordsScreen(onBack = { showRecords = false }, onOpenReview = { reviewSessionId = it })
-                        showAircraft -> AircraftScreen(onBack = { showAircraft = false })
-                        else -> HomeScreen(
-                            onStartFlight = { showCamera = true },
-                            onOpenRecords = { showRecords = true },
-                            onOpenAircraft = { showAircraft = true }
-                        )
-                    }
+                    AppBootstrap()
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppBootstrap() {
+    val context = LocalContext.current
+    var modelFile by remember { mutableStateOf<File?>(null) }
+    var resolved by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var message by remember { mutableStateOf("首次启动正在准备本地 AI 模型…") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var retryKey by remember { mutableIntStateOf(0) }
+    LaunchedEffect(retryKey) {
+        loading = true; resolved = false; error = null; progress = 0f
+        message = "正在检查本地模型…"
+        try {
+            modelFile = ModelInstaller.ensureInstalled(context) { downloaded, total ->
+                progress = if (total > 0L) downloaded.toFloat() / total else 0f
+                message = if (total > 0L) "正在下载模型：${downloaded / 1_048_576} / ${total / 1_048_576} MB" else "正在下载本地模型…"
+            }
+            message = "本地 AI 模型已就绪"
+            resolved = true
+        } catch (failure: Exception) { error = failure.message ?: "模型下载失败" }
+        finally { loading = false }
+    }
+    if (resolved) {
+        var showCamera by remember { mutableStateOf(false) }
+        var showRecords by remember { mutableStateOf(false) }
+        var showAircraft by remember { mutableStateOf(false) }
+        var reviewSessionId by remember { mutableStateOf<String?>(null) }
+        when {
+            showCamera -> CameraScreen(onBack = { showCamera = false }, modelFile = modelFile)
+            reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
+            showRecords -> RecordsScreen(onBack = { showRecords = false }, onOpenReview = { reviewSessionId = it })
+            showAircraft -> AircraftScreen(onBack = { showAircraft = false })
+            else -> HomeScreen(onStartFlight = { showCamera = true }, onOpenRecords = { showRecords = true }, onOpenAircraft = { showAircraft = true })
+        }
+    } else {
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+            Text("CPAC FLY", style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(12.dp))
+            Text("首次启动下载一次免费模型并保存在手机本地。之后无需重复下载，推理不需要服务器或付费 API。")
+            Spacer(Modifier.height(20.dp)); Text(message)
+            if (loading) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth()) }
+            error?.let {
+                Spacer(Modifier.height(12.dp)); Text("模型准备失败：$it", color = MaterialTheme.colorScheme.error)
+                Text("检查网络后重试；也可以先进入手动模式，之后再下载模型。")
+                Button(onClick = { retryKey++ }) { Text("重试下载") }
+                OutlinedButton(onClick = { modelFile = null; resolved = true }) { Text("进入手动模式") }
             }
         }
     }
