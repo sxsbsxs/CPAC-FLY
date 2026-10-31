@@ -1,15 +1,13 @@
 package com.cpacfly.tracking
 
-import android.graphics.RectF
-import com.cpacfly.detection.MediaPipeObjectDetector
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class DetectionTrackerTest {
     private fun detection(left: Float, label: String = "airplane") =
-        MediaPipeObjectDetector.Detection(
-            box = RectF(left, 10f, left + 30f, 30f),
+        DetectionCandidate(
+            box = DetectionBox(left, 10f, left + 30f, 30f),
             label = label,
             score = 0.9f,
             categoryIndex = 4
