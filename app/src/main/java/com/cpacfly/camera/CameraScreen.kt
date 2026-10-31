@@ -298,10 +298,9 @@ fun CameraScreen(onBack: () -> Unit) {
                                     }
                                     if (shouldStop) {
                                         mainExecutor.execute {
-                                            if (flightActive) {
-                                                elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
+                                            if (flightActiveRef.compareAndSet(true, false)) {
+                                                elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
                                                 flightActive = false
-                                                flightActiveRef.set(false)
                                                 targetWasSeenRef.set(false)
                                                 outOfViewCountdownMs = 0L
                                                 val savedId = sessionStore.add(elapsedFlightMs)
