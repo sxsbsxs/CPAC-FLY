@@ -30,7 +30,19 @@ import com.cpacfly.records.PaperAircraft
 import com.cpacfly.records.PaperAircraftStore
 import java.text.DateFormat
 import java.util.Date
-import kotlin.math.abs
+
+
+private fun nearestFrameIndex(timestampsMs: List<Long>, targetMs: Long): Int {
+    if (timestampsMs.isEmpty()) return -1
+    val found = timestampsMs.binarySearch(targetMs)
+    if (found >= 0) return found
+    val insertion = -found - 1
+    if (insertion <= 0) return 0
+    if (insertion >= timestampsMs.size) return timestampsMs.lastIndex
+    val before = timestampsMs[insertion - 1]
+    val after = timestampsMs[insertion]
+    return if (targetMs - before <= after - targetMs) insertion - 1 else insertion
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -273,7 +285,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
-            val currentFrameIndex = frameTimesMs.indices.minByOrNull { abs(frameTimesMs[it] - positionMs) } ?: -1
+            val currentFrameIndex = nearestFrameIndex(frameTimesMs, positionMs)
             Text(if (currentFrameIndex >= 0) "视频帧：${currentFrameIndex + 1} / ${frameTimesMs.size}" else "未能读取视频帧时间戳")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -289,7 +301,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 value = positionMs.toFloat().coerceIn(0f, videoDurationMs.coerceAtLeast(1L).toFloat()),
                 onValueChange = { positionMs = it.toLong() },
                 onValueChangeFinished = {
-                    frameTimesMs.minByOrNull { timestamp -> abs(timestamp - positionMs) }?.let { positionMs = it }
+                    nearestFrameIndex(frameTimesMs, positionMs).takeIf { it >= 0 }?.let { positionMs = frameTimesMs[it] }
                 },
                 valueRange = 0f..videoDurationMs.coerceAtLeast(1L).toFloat(),
                 enabled = videoDurationMs > 0L
