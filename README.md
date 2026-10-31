@@ -4,7 +4,7 @@
 
 CPAC FLY aims to help users record flights, review video, understand flight paths, estimate ground-relative altitude and descent trends, and improve hang-time through repeatable training.
 
-> **Project status:** early development. CameraX preview/frame analysis, optional CameraX video capture with MediaStore output, generic frame-to-frame tracking, manual flight timing, and local flight-session history are implemented. The latest code still requires CI and physical-device verification. The current pretrained detector is a generic COCO baseline, not a paper-airplane-specific model; real-device behavior and paper-airplane recognition are not yet validated.
+> **Project status:** early development. CameraX preview/frame analysis, optional CameraX video capture with MediaStore output, generic frame-to-frame tracking, manual flight timing, and local flight-session history are implemented. The latest code still requires CI and physical-device verification. The bundled ML Kit detector tracks generic objects across video frames and returns tracking IDs. It is not a paper-airplane-specific classifier; real-device behavior and paper-airplane recognition are not yet validated.
 
 ## First release scope
 
@@ -14,7 +14,7 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 - A manual start/landing flight timer with local session persistence (automatic event detection is still pending).
 - Live estimated ground-relative altitude, descent rate, remaining-flight-time range, and confidence/quality status.
 - Video review, slow-motion playback, 2D image-plane trajectory, altitude and descent-rate plots.
-- On-device generic object-detection baseline using MediaPipe EfficientDet-Lite0, plus IoU-based generic object tracking; paper-airplane-specific recognition remains unvalidated.
+- On-device generic object detection and stream tracking using Google ML Kit STREAM_MODE; paper-airplane-specific recognition remains unvalidated.
 - Training history and session reports.
 - No leaderboard integration in the initial release.
 - No account or cloud backend required for the first local-testing milestone.
@@ -30,11 +30,11 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 - Optional ARCore Depth API on supported devices, with runtime capability checks
 - Room for local structured data
 - Android media storage for recorded video
-- MediaPipe Tasks Vision for the initial on-device detection baseline; model limitations and license evidence are documented
+- Google ML Kit Object Detection for the initial on-device detection baseline; model limitations and license evidence are documented
 
 CameraX: https://developer.android.com/media/camera/camerax
 ARCore Depth: https://developers.google.com/ar/develop/depth
-MediaPipe Object Detector: https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
+ML Kit Object Detection: https://developers.google.com/ml-kit/vision/object-detection/android
 
 ## Repository layout
 
@@ -49,7 +49,7 @@ ml/                  Dataset, training, evaluation, and model metadata (no large
 
 Open this repository in a current stable Android Studio installation, allow Gradle sync, then run the `app` configuration on an Android device or emulator.
 
-The source includes CameraX preview/frame analysis/video capture, a MediaPipe detector wrapper, a first-launch checksum-verified EfficientDet-Lite0 model installer, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. A recent CI run previously succeeded, but the latest changes must pass CI and the APK must be installed and verified on physical devices before being treated as a test release. A Gradle wrapper and physical-device installation/verification are still pending.
+The source includes CameraX preview/frame analysis/video capture, a ML Kit stream detector, a bundled ML Kit detector, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. The latest changes must pass CI and the APK must be installed and verified on physical devices before being treated as a test release. A Gradle wrapper and physical-device installation/verification are still pending.
 
 ## Important measurement limitations
 
