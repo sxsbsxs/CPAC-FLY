@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import com.cpacfly.camera.CameraScreen
 import com.cpacfly.records.FlightSession
 import com.cpacfly.records.FlightSessionStore
+import com.cpacfly.records.PaperAircraft
+import com.cpacfly.records.PaperAircraftStore
 import java.text.DateFormat
 import java.util.Date
 
@@ -26,12 +28,15 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var showCamera by remember { mutableStateOf(false) }
                     var showRecords by remember { mutableStateOf(false) }
+                    var showAircraft by remember { mutableStateOf(false) }
                     when {
                         showCamera -> CameraScreen(onBack = { showCamera = false })
                         showRecords -> RecordsScreen(onBack = { showRecords = false })
+                        showAircraft -> AircraftScreen(onBack = { showAircraft = false })
                         else -> HomeScreen(
                             onStartFlight = { showCamera = true },
-                            onOpenRecords = { showRecords = true }
+                            onOpenRecords = { showRecords = true },
+                            onOpenAircraft = { showAircraft = true }
                         )
                     }
                 }
@@ -41,7 +46,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit) {
+private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit, onOpenAircraft: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -65,7 +70,7 @@ private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit) {
         }
         item { Text("训练工具", style = MaterialTheme.typography.titleLarge) }
         item { FeatureCard("飞行分析", "录像保存、手动计时与后续轨迹分析") }
-        item { FeatureCard("我的纸飞机", "记录机型、纸张、尺寸与折叠参数") }
+        item { OutlinedButton(onClick = onOpenAircraft) { Text("管理我的纸飞机") } }
         item { FeatureCard("训练记录", "本地保存试飞时长和关联视频") }
         item { OutlinedButton(onClick = onOpenRecords) { Text("查看训练记录") } }
         item {
@@ -99,6 +104,75 @@ private fun RecordsScreen(onBack: () -> Unit) {
                         onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
                         onDelete = { store.delete(session.id); sessions = store.all() }
                     )
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun AircraftScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { PaperAircraftStore(context) }
+    var profiles by remember { mutableStateOf(store.all()) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }
+    var paperType by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var wingspan by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("我的纸飞机", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onBack) { Text("返回") }
+        }
+        OutlinedTextField(name, { name = it; error = null }, label = { Text("飞机名称（必填）") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(paperType, { paperType = it }, label = { Text("纸张类型/克重") }, modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(weight, { weight = it }, label = { Text("重量（克）") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(wingspan, { wingspan = it }, label = { Text("翼展（毫米）") }, modifier = Modifier.weight(1f))
+        }
+        OutlinedTextField(notes, { notes = it }, label = { Text("折叠参数与备注") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                val w = weight.toDoubleOrNull()
+                val span = wingspan.toDoubleOrNull()
+                if (name.isBlank()) {
+                    error = "请填写飞机名称"
+                } else if ((weight.isNotBlank() && (w == null || w <= 0.0)) || (wingspan.isNotBlank() && (span == null || span <= 0.0))) {
+                    error = "重量和翼展必须是大于 0 的数字"
+                } else {
+                    runCatching {
+                        store.save(PaperAircraft(editingId ?: java.util.UUID.randomUUID().toString(), name, paperType, w, span, notes))
+                    }.onSuccess {
+                        profiles = store.all()
+                        editingId = null; name = ""; paperType = ""; weight = ""; wingspan = ""; notes = ""; error = null
+                    }.onFailure { error = it.message ?: "保存失败" }
+                }
+            }) { Text(if (editingId == null) "添加纸飞机" else "保存修改") }
+            TextButton(onClick = { editingId = null; name = ""; paperType = ""; weight = ""; wingspan = ""; notes = ""; error = null }) { Text("清空") }
+        }
+        Divider(Modifier.padding(vertical = 8.dp))
+        Text("已保存 ${profiles.size} 架", style = MaterialTheme.typography.titleMedium)
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(profiles, key = { it.id }) { profile ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(profile.name, style = MaterialTheme.typography.titleMedium)
+                        Text(listOf(profile.paperType.takeIf { it.isNotBlank() }, profile.weightGrams?.let { "$it 克" }, profile.wingspanMm?.let { "翼展 $it 毫米" }).filterNotNull().joinToString(" · "))
+                        if (profile.notes.isNotBlank()) Text(profile.notes)
+                        Row {
+                            TextButton(onClick = {
+                                editingId = profile.id; name = profile.name; paperType = profile.paperType
+                                weight = profile.weightGrams?.toString() ?: ""; wingspan = profile.wingspanMm?.toString() ?: ""; notes = profile.notes
+                            }) { Text("编辑") }
+                            TextButton(onClick = { store.delete(profile.id); profiles = store.all() }) { Text("删除") }
+                        }
+                    }
                 }
             }
         }
