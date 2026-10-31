@@ -33,6 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
+import java.io.File
 import com.cpacfly.tracking.DetectionTracker
 import com.cpacfly.vision.GlobalMotionEstimator
 import com.cpacfly.tracking.DetectionBox
@@ -48,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
-fun CameraScreen(onBack: () -> Unit) {
+fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasPermission by remember {
@@ -316,11 +317,13 @@ fun CameraScreen(onBack: () -> Unit) {
                                     (((pixel shr 16 and 0xff) * 299 + (pixel shr 8 and 0xff) * 587 + (pixel and 0xff) * 114) / 1000)
                                 }
                                 val motion = motionEstimator.estimate(gray, 128, 96)
-                                val detector = detectorRef.updateAndGet { existing ->
-                                    existing ?: MediaPipeObjectDetector(context.applicationContext)
-                                }!!
+                                val detector = modelFile?.let { file ->
+                                    detectorRef.updateAndGet { existing ->
+                                        existing ?: MediaPipeObjectDetector(context.applicationContext, file)
+                                    }
+                                }
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
-                                val detections = detector.detect(frameBitmap, timestampMs)
+                                val detections = detector?.detect(frameBitmap, timestampMs).orEmpty()
                                 val tracked = tracker.update(detections.map { detection ->
                                     DetectionCandidate(
                                         box = DetectionBox(
@@ -365,7 +368,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }
 
                                 val detectionSummary = if (tracked.isEmpty()) {
-                                    "当前帧没有检测到 COCO 目标"
+                                    if (modelFile == null) "未安装 AI 模型：当前为手动计时模式" else "当前帧没有检测到 COCO 目标"
                                 } else {
                                     tracked.sortedByDescending { it.detection.score }
                                         .take(5)
@@ -388,7 +391,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                     } else {
                                         "画面纹理不足或估计不可靠（%.2f）".format(motion.confidence)
                                     }
-                                    status = "摄像头运行中 · 本地 AI 推理"
+                                    status = if (modelFile != null) "摄像头运行中 · 本地 AI 推理" else "摄像头运行中 · 手动模式（AI 模型未安装）"
                                     measuredFps?.let { fps = it }
                                 }
                             } catch (error: Throwable) {
