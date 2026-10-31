@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -98,7 +100,7 @@ val downloadDetectorModel by tasks.registering {
             }
         }
 
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val digest = MessageDigest.getInstance("SHA-256")
             .digest(output.readBytes())
             .joinToString("") { "%02x".format(it) }
         val expected = "40338edf5ec70d43e318b0a716a84d4564cd1802759a7a07170c7e43796dbf58"
