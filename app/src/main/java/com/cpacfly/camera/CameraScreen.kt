@@ -141,6 +141,7 @@ fun CameraScreen(onBack: () -> Unit) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = recordingAvailable && !isRecording, onClick = {
                             val capture = videoCapture ?: return@Button
+                            finalizedVideoUri = null
                             val values = ContentValues().apply {
                                 put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
                                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
