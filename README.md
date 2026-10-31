@@ -2,9 +2,9 @@
 
 **CPAC FLY** is an Android-first smart flight timing and training analysis app for paper-airplane enthusiasts.
 
-CPAC FLY aims to help users record flights, review video, understand flight paths, and improve hang-time through repeatable training.
+CPAC FLY aims to help users record flights, review video, understand flight paths, estimate ground-relative altitude and descent trends, and improve hang-time through repeatable training.
 
-> **Project status:** early development. The first milestone is an installable Android test build. Automatic aircraft detection and timing are planned capabilities, not yet validated features.
+> **Project status:** early development. The first milestone is an installable Android test build. Automatic aircraft detection, timing, and altitude estimation are planned capabilities, not yet validated features.
 
 ## First release scope
 
@@ -12,7 +12,8 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 - Camera preview and video recording.
 - Flight session and paper-aircraft records stored locally.
 - A timing workflow with manual correction.
-- Video review, slow-motion playback, and 2D image-plane trajectory visualization.
+- Live estimated ground-relative altitude, descent rate, remaining-flight-time range, and confidence/quality status.
+- Video review, slow-motion playback, 2D image-plane trajectory, altitude and descent-rate plots.
 - On-device aircraft detection and tracking after a suitable, license-reviewed model has been evaluated.
 - Training history and session reports.
 - No leaderboard integration in the initial release.
@@ -22,11 +23,14 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 
 - Kotlin and Jetpack Compose
 - CameraX for camera preview, image analysis, and video capture
+- Optional ARCore Depth API on supported devices, with runtime capability checks
 - Room for local structured data
 - Android media storage for recorded video
 - LiteRT for on-device inference once the model and its license are approved
 
-CameraX is the recommended starting point for new Android camera applications. See the [CameraX overview](https://developer.android.com/media/camera/camerax). LiteRT provides on-device inference; see [LiteRT documentation](https://developers.google.com/edge/litert).
+CameraX: https://developer.android.com/media/camera/camerax
+ARCore Depth: https://developers.google.com/ar/develop/depth
+LiteRT: https://developers.google.com/edge/litert
 
 ## Repository layout
 
@@ -45,7 +49,9 @@ The first source scaffold is intentionally small. A Gradle wrapper and CI workfl
 
 ## Important measurement limitations
 
-A normal phone camera produces a 2D video view. A single camera view cannot, by itself, establish a paper airplane's true 3D trajectory, physical speed, lift, or drag. Timing must use capture timestamps and clearly defined event rules; frame drops, variable frame rate, occlusion, and off-screen flight can affect accuracy. The app must expose uncertainty and allow user correction.
+A normal phone camera produces a 2D video view. Absolute ground-relative height requires reliable scale and scene geometry; camera-to-aircraft range is not the same as vertical height above ground. ARCore Depth can provide per-pixel depth estimates on supported devices, but quality depends on device capability, motion, range, and scene texture. When calibration or depth quality is insufficient, CPAC FLY must show relative trend or unavailable status rather than invent a precise metre value.
+
+Descent rate must be derived from timestamped height samples with smoothing. Remaining flight time is a conditional estimate: it should be shown as a range with confidence only when descent is stable and the landing/termination model is applicable. Otherwise the app should explain why it cannot estimate reliably.
 
 The app must distinguish:
 1. **Automatic estimate** — computer-vision result requiring review.
