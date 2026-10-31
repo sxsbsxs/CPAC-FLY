@@ -93,15 +93,26 @@ private fun RecordsScreen(onBack: () -> Unit) {
             Text("还没有试飞记录。完成一次手动计时后，记录会显示在这里。")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(sessions, key = { it.id }) { session -> SessionCard(session) }
+                items(sessions, key = { it.id }) { session ->
+                    SessionCard(
+                        session = session,
+                        onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
+                        onDelete = { store.delete(session.id); sessions = store.all() }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SessionCard(session: FlightSession) {
+private fun SessionCard(
+    session: FlightSession,
+    onSaveNote: (String) -> Unit,
+    onDelete: () -> Unit
+) {
     val uriHandler = LocalUriHandler.current
+    var note by remember(session.id, session.note) { mutableStateOf(session.note) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
@@ -109,6 +120,17 @@ private fun SessionCard(session: FlightSession) {
             Text(if (session.videoUri != null) "已关联录像" else "未关联录像", style = MaterialTheme.typography.bodySmall)
             session.videoUri?.let { uri ->
                 TextButton(onClick = { uriHandler.openUri(uri) }) { Text("播放录像") }
+            }
+            OutlinedTextField(
+                value = note,
+                onValueChange = { if (it.length <= 1000) note = it },
+                label = { Text("试飞备注（纸型、折法、环境等）") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onSaveNote(note) }) { Text("保存备注") }
+                TextButton(onClick = onDelete) { Text("删除记录") }
             }
         }
     }
