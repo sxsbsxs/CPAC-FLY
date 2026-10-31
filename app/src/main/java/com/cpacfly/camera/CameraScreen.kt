@@ -23,6 +23,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
@@ -40,6 +41,16 @@ fun CameraScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf("等待摄像头启动") }
     var latestDetections by remember { mutableStateOf("尚无检测结果") }
     var fps by remember { mutableStateOf(0f) }
+    var flightActive by remember { mutableStateOf(false) }
+    var flightStartMs by remember { mutableStateOf(0L) }
+    var elapsedFlightMs by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(flightActive, flightStartMs) {
+        while (flightActive) {
+            elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
+            delay(100L)
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -86,6 +97,25 @@ fun CameraScreen(onBack: () -> Unit) {
             )
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Text("分析帧率：${"%.1f".format(fps)} FPS", style = MaterialTheme.typography.bodySmall)
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("飞行计时", style = MaterialTheme.typography.titleMedium)
+                    Text("计时：%.2f 秒".format(elapsedFlightMs / 1000.0), style = MaterialTheme.typography.headlineSmall)
+                    if (flightActive) {
+                        Button(onClick = {
+                            elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
+                            flightActive = false
+                        }) { Text("标记落地 · 停止计时") }
+                    } else {
+                        Button(onClick = {
+                            flightStartMs = SystemClock.elapsedRealtime()
+                            elapsedFlightMs = 0L
+                            flightActive = true
+                        }) { Text("标记出手 · 开始计时") }
+                    }
+                    Text("这是手动计时基线；自动识别出手和落地事件尚未接入。", style = MaterialTheme.typography.bodySmall)
+                }
+            }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
                     Text("通用模型检测结果", style = MaterialTheme.typography.titleMedium)
