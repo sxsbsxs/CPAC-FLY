@@ -151,6 +151,17 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
             TextButton(onClick = onBack) { Text("返回") }
         }
         TextButton(onClick = { sessions = store.all() }) { Text("刷新记录") }
+        val measuredSessions = sessions.filter { it.durationMs > 0L }
+        if (measuredSessions.isNotEmpty()) {
+            val best = measuredSessions.minOf { it.durationMs }
+            val average = measuredSessions.map { it.durationMs }.average()
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("训练概览", style = MaterialTheme.typography.titleMedium)
+                    Text("试飞 ${sessions.size} 次 · 平均 %.2f 秒 · 最佳 %.2f 秒".format(average / 1000.0, best / 1000.0))
+                }
+            }
+        }
         if (sessions.isEmpty()) {
             Text("还没有试飞记录。完成一次手动计时后，记录会显示在这里。")
         } else {
@@ -159,7 +170,12 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
                     SessionCard(
                         session = session,
                         onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
-                        onDelete = { store.delete(session.id); measurementStore.deleteSessionData(session.id); sessions = store.all() },
+                                                onDelete = {
+                            session.videoUri?.let { uri -> runCatching { context.contentResolver.delete(Uri.parse(uri), null, null) } }
+                            store.delete(session.id)
+                            measurementStore.deleteSessionData(session.id)
+                            sessions = store.all()
+                        },
                         onReview = { onOpenReview(session.id) }
                     )
                 }
