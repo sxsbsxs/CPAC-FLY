@@ -66,7 +66,7 @@ fun CameraScreen(onBack: () -> Unit) {
     var recording by remember { mutableStateOf<Recording?>(null) }
     var pendingSessionId by remember { mutableStateOf<String?>(null) }
     var finalizedVideoUri by remember { mutableStateOf<String?>(null) }
-    var autoStopSeconds by remember { mutableFloatStateOf(15f) }
+    var autoStopSeconds by remember { mutableFloatStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getInt("out_of_view_seconds", 15).toFloat()) }
     var outOfViewCountdownMs by remember { mutableLongStateOf(0L) }
     val outOfViewController = remember { OutOfViewStopController(15_000L) }
     val flightActiveRef = remember { AtomicBoolean(false) }
@@ -135,6 +135,7 @@ fun CameraScreen(onBack: () -> Unit) {
                         value = autoStopSeconds,
                         onValueChange = {
                             autoStopSeconds = it
+                            context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("out_of_view_seconds", it.toInt()).apply()
                             outOfViewController.setTimeoutMs(it.toLong() * 1_000L)
                         },
                         valueRange = 5f..120f,
