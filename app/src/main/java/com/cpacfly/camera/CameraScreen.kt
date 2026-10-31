@@ -63,6 +63,7 @@ fun CameraScreen(onBack: () -> Unit) {
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var recording by remember { mutableStateOf<Recording?>(null) }
     var pendingSessionId by remember { mutableStateOf<String?>(null) }
+    var finalizedVideoUri by remember { mutableStateOf<String?>(null) }
     val sessionStore = remember { FlightSessionStore(context) }
 
     LaunchedEffect(flightActive, flightStartMs) {
@@ -127,6 +128,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
                             flightActive = false
                             pendingSessionId = sessionStore.add(elapsedFlightMs)
+                            finalizedVideoUri?.let { sessionStore.attachVideo(pendingSessionId!!, it) }
                             recording?.stop()
                         }) { Text("标记落地 · 保存本次试飞") }
                     } else {
@@ -152,7 +154,8 @@ fun CameraScreen(onBack: () -> Unit) {
                                     if (event is VideoRecordEvent.Finalize) {
                                         isRecording = false
                                         if (!event.hasError()) {
-                                            pendingSessionId?.let { sessionStore.attachVideo(it, event.outputResults.outputUri.toString()) }
+                                            finalizedVideoUri = event.outputResults.outputUri.toString()
+                                            pendingSessionId?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
                                             status = "录像已保存到 Movies/CPAC FLY"
                                         } else {
                                             status = "录像保存失败：${event.error}"
