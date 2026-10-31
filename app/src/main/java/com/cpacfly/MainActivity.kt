@@ -1,13 +1,20 @@
 package com.cpacfly
 
 import android.os.Bundle
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -29,10 +36,12 @@ class MainActivity : ComponentActivity() {
                     var showCamera by remember { mutableStateOf(false) }
                     var showRecords by remember { mutableStateOf(false) }
                     var showAircraft by remember { mutableStateOf(false) }
+                    var reviewSessionId by remember { mutableStateOf<String?>(null) }
                     when {
                         showCamera -> CameraScreen(onBack = { showCamera = false })
                         showRecords -> RecordsScreen(onBack = { showRecords = false })
                         showAircraft -> AircraftScreen(onBack = { showAircraft = false })
+                        reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
                         else -> HomeScreen(
                             onStartFlight = { showCamera = true },
                             onOpenRecords = { showRecords = true },
@@ -102,7 +111,8 @@ private fun RecordsScreen(onBack: () -> Unit) {
                     SessionCard(
                         session = session,
                         onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
-                        onDelete = { store.delete(session.id); sessions = store.all() }
+                        onDelete = { store.delete(session.id); sessions = store.all() },
+                        onReview = { reviewSessionId = session.id }
                     )
                 }
             }
@@ -179,11 +189,100 @@ private fun AircraftScreen(onBack: () -> Unit) {
     }
 }
 
+
+@Composable
+private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { FlightSessionStore(context) }
+    val session = remember(sessionId) { store.all().firstOrNull { it.id == sessionId } }
+    var videoDurationMs by remember(sessionId) { mutableLongStateOf(0L) }
+    var positionMs by remember(sessionId) { mutableLongStateOf(0L) }
+    var releaseMs by remember(sessionId) { mutableStateOf(session?.releaseTimeMs) }
+    var landingMs by remember(sessionId) { mutableStateOf(session?.landingTimeMs) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(session?.videoUri) {
+        val uri = session?.videoUri ?: return@LaunchedEffect
+        videoDurationMs = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, Uri.parse(uri))
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            } finally {
+                retriever.release()
+            }
+        }
+        positionMs = 0L
+    }
+
+    val frame = produceState<android.graphics.Bitmap?>(null, session?.videoUri, positionMs) {
+        val uri = session?.videoUri ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, Uri.parse(uri))
+                retriever.getFrameAtTime(positionMs * 1000L, MediaMetadataRetriever.OPTION_CLOSEST)
+            } catch (_: Exception) {
+                null
+            } finally {
+                retriever.release()
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("录像逐帧复核", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onBack) { Text("返回") }
+        }
+        if (session == null || session.videoUri == null) {
+            Text("该记录没有可用录像。")
+        } else {
+            Text("拖动时间线定位画面。标记出手帧和落地帧后，按两个视频时间戳之差计算飞行时长。")
+            frame.value?.let { bitmap ->
+                Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
+            } ?: Text("正在读取视频帧，或当前录像无法解码。")
+            Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
+            Slider(
+                value = positionMs.toFloat().coerceIn(0f, videoDurationMs.coerceAtLeast(1L).toFloat()),
+                onValueChange = { positionMs = it.toLong() },
+                valueRange = 0f..videoDurationMs.coerceAtLeast(1L).toFloat(),
+                enabled = videoDurationMs > 0L
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { releaseMs = positionMs; message = "已标记出手帧" }) { Text("标记出手帧") }
+                OutlinedButton(onClick = { landingMs = positionMs; message = "已标记落地帧" }) { Text("标记落地帧") }
+            }
+            Text("出手：\${releaseMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
+            Text("落地：\${landingMs?.let { "%.3f 秒".format(it / 1000.0) } ?: "未标记"}")
+            if (releaseMs != null && landingMs != null && landingMs!! > releaseMs!!) {
+                Text("按视频时间戳计算：%.3f 秒".format((landingMs!! - releaseMs!!) / 1000.0))
+            } else {
+                Text("请确保落地帧时间晚于出手帧。", color = MaterialTheme.colorScheme.error)
+            }
+            message?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
+            Button(
+                enabled = releaseMs != null && landingMs != null && landingMs!! > releaseMs!!,
+                onClick = {
+                    val saved = store.updateTiming(sessionId, releaseMs!!, landingMs!!)
+                    message = if (saved) "已保存人工复核时间戳和修正后的飞行时长" else "保存失败，请检查时间戳"
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("保存复核结果") }
+            Text(
+                "注意：帧定位受视频编码和设备解码能力影响；保存的是所选视频时间位置，并非自动识别出的真实离手或触地时刻。",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
 @Composable
 private fun SessionCard(
     session: FlightSession,
     onSaveNote: (String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onReview: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
     var note by remember(session.id, session.note) { mutableStateOf(session.note) }
@@ -193,7 +292,10 @@ private fun SessionCard(
             Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
             Text(if (session.videoUri != null) "已关联录像" else "未关联录像", style = MaterialTheme.typography.bodySmall)
             session.videoUri?.let { uri ->
-                TextButton(onClick = { uriHandler.openUri(uri) }) { Text("播放录像") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { uriHandler.openUri(uri) }) { Text("播放录像") }
+                    TextButton(onClick = onReview) { Text("逐帧复核计时") }
+                }
             }
             OutlinedTextField(
                 value = note,
