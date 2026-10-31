@@ -6,7 +6,7 @@ import android.graphics.RectF
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
-import com.google.mlkit.vision.objects.ObjectDetectorOptions
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 
 /**
  * Bundled ML Kit on-device object detector in STREAM_MODE.
