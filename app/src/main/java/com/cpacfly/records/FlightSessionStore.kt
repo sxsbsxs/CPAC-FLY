@@ -10,7 +10,9 @@ data class FlightSession(
     val createdAt: Long,
     val durationMs: Long,
     val videoUri: String?,
-    val note: String = ""
+    val note: String = "",
+    val releaseTimeMs: Long? = null,
+    val landingTimeMs: Long? = null
 )
 
 class FlightSessionStore(context: Context) {
@@ -28,7 +30,9 @@ class FlightSessionStore(context: Context) {
                     createdAt = item.getLong("createdAt"),
                     durationMs = item.getLong("durationMs"),
                     videoUri = item.optString("videoUri").takeIf { it.isNotBlank() && it != "null" },
-                    note = item.optString("note", "")
+                    note = item.optString("note", ""),
+                    releaseTimeMs = item.takeIf { !it.isNull("releaseTimeMs") }?.optLong("releaseTimeMs"),
+                    landingTimeMs = item.takeIf { !it.isNull("landingTimeMs") }?.optLong("landingTimeMs")
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAt }
@@ -45,6 +49,21 @@ class FlightSessionStore(context: Context) {
     @Synchronized
     fun attachVideo(sessionId: String, videoUri: String) {
         write(all().map { if (it.id == sessionId) it.copy(videoUri = videoUri) else it })
+    }
+
+    @Synchronized
+    fun updateTiming(sessionId: String, releaseTimeMs: Long, landingTimeMs: Long): Boolean {
+        if (releaseTimeMs < 0L || landingTimeMs <= releaseTimeMs) return false
+        val current = all()
+        if (current.none { it.id == sessionId }) return false
+        write(current.map { session ->
+            if (session.id == sessionId) session.copy(
+                releaseTimeMs = releaseTimeMs,
+                landingTimeMs = landingTimeMs,
+                durationMs = landingTimeMs - releaseTimeMs
+            ) else session
+        })
+        return true
     }
 
     @Synchronized
@@ -71,6 +90,8 @@ class FlightSessionStore(context: Context) {
                 put("durationMs", session.durationMs)
                 put("videoUri", session.videoUri)
                 put("note", session.note)
+                put("releaseTimeMs", session.releaseTimeMs ?: JSONObject.NULL)
+                put("landingTimeMs", session.landingTimeMs ?: JSONObject.NULL)
             })
         }
         prefs.edit().putString(KEY_SESSIONS, array.toString()).apply()
