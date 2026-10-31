@@ -181,17 +181,17 @@ fun CameraScreen() {
                         }
                     }
                     Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.82f), shape = MaterialTheme.shapes.small) {
+                        Surface(color = androidx.compose.ui.graphics.Color.White, shape = MaterialTheme.shapes.small) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("纸飞机识别状态", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelLarge)
-                                Text("专用模型：待完成本地权重验证；当前使用通用目标检测", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodySmall)
-                                Text(if (liveDetectionCount > 0) "实时画面：检测到 $liveDetectionCount 个动态目标（尚未确认是纸飞机）" else "实时画面：暂未检测到动态目标", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodySmall)
-                                Text("图像分析：%.1f FPS".format(fps), color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelSmall)
+                                Text("纸飞机识别状态", color = androidx.compose.ui.graphics.Color.Black, style = MaterialTheme.typography.labelLarge)
+                                Text("专用模型：待完成本地权重验证；当前使用通用目标检测", color = androidx.compose.ui.graphics.Color.Black, style = MaterialTheme.typography.bodySmall)
+                                Text(if (liveDetectionCount > 0) "实时画面：检测到 $liveDetectionCount 个动态目标（尚未确认是纸飞机）" else "实时画面：暂未检测到动态目标", color = androidx.compose.ui.graphics.Color.Black, style = MaterialTheme.typography.bodySmall)
+                                Text("图像分析：%.1f FPS".format(fps), color = androidx.compose.ui.graphics.Color.DarkGray, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         if (flightActive && outOfViewCountdownMs > 0L) {
-                            Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f), shape = MaterialTheme.shapes.small) {
-                                Text("目标离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒后停止", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = androidx.compose.ui.graphics.Color.White)
+                            Surface(color = androidx.compose.ui.graphics.Color.White, shape = MaterialTheme.shapes.small) {
+                                Text("目标离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒后停止", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = androidx.compose.ui.graphics.Color.Black)
                             }
                         }
                         Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.62f), shape = MaterialTheme.shapes.medium) {
