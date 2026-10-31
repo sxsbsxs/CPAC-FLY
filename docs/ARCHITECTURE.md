@@ -6,7 +6,7 @@
 - Jetpack Compose：界面
 - CameraX：预览、图像分析、录像
 - MediaPipe Tasks Vision 1.1.0：Android 端目标检测 API
-- EfficientDet-Lite0（MediaPipe 官方 float32 v1，COCO 预训练）：第一阶段通用检测基线，构建时下载并校验 SHA-256
+- EfficientDet-Lite0（MediaPipe 官方 float32 v1，COCO 预训练）：第一阶段通用检测基线，首次启动下载并校验 SHA-256，保存在应用私有目录供离线复用
 - ARCore Depth API（可选能力）：支持设备上的逐帧深度图；运行时检查能力，不作为所有设备的硬依赖
 - Room：试飞、飞机档案和事件数据
 - MediaStore / app-specific storage：视频文件
@@ -74,3 +74,12 @@ CameraX frame + capture timestamp → detector → tracker/manual ROI fallback �
 - `GlobalMotionEstimator` 是纯 Kotlin 灰度帧块匹配平移估计基线，已接入 CameraX 分析帧并显示实时诊断，输出归一化平移、置信度和可靠性标志。它只能近似处理平移型镜头运动，不处理旋转、缩放和显著视差；目前尚未作为 `FlightTimingAnalyzer` 的可信相机运动补偿输入，不可把输出当作已完成的手持跟拍计时补偿。
 
 - 试飞记录可关联用户建立的纸飞机档案；拍摄前可选择机型，手动结束和离镜自动停止均保存机型 ID/名称。
+
+
+## 首次启动模型安装与离线运行
+
+- 首次启动检查 `filesDir/models/efficientdet_lite0.tflite`；存在且 SHA-256 匹配则直接复用，不访问网络。
+- 不存在或校验失败时，从固定版本的官方模型地址下载到临时文件，校验通过后原子重命名为正式模型文件。
+- 模型推理在 Android 设备本地执行，不使用推理 API、不上传图像或视频。首次下载需要网络；下载完成后检测可离线运行。
+- 下载失败时允许进入手动拍摄/计时模式，并可在后续启动重试。
+- 当前模型仍是 COCO 通用模型，不能代表折纸飞机专用识别。
