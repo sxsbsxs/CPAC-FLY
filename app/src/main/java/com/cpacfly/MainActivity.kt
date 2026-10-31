@@ -274,7 +274,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
-            val currentFrameIndex = VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs)
+            val currentFrameIndex = VideoFrameTimeline.VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs)
             Text(if (currentFrameIndex >= 0) "视频帧：${currentFrameIndex + 1} / ${frameTimesMs.size}" else "未能读取视频帧时间戳")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
