@@ -9,7 +9,8 @@ data class FlightSession(
     val id: String,
     val createdAt: Long,
     val durationMs: Long,
-    val videoUri: String?
+    val videoUri: String?,
+    val note: String = ""
 )
 
 class FlightSessionStore(context: Context) {
@@ -18,7 +19,7 @@ class FlightSessionStore(context: Context) {
     @Synchronized
     fun all(): List<FlightSession> {
         val source = prefs.getString(KEY_SESSIONS, "[]") ?: "[]"
-        val array = JSONArray(source)
+        val array = runCatching { JSONArray(source) }.getOrElse { JSONArray() }
         return (0 until array.length()).mapNotNull { index ->
             runCatching {
                 val item = array.getJSONObject(index)
@@ -26,7 +27,8 @@ class FlightSessionStore(context: Context) {
                     id = item.getString("id"),
                     createdAt = item.getLong("createdAt"),
                     durationMs = item.getLong("durationMs"),
-                    videoUri = item.optString("videoUri").takeIf { it.isNotBlank() && it != "null" }
+                    videoUri = item.optString("videoUri").takeIf { it.isNotBlank() && it != "null" },
+                    note = item.optString("note", "")
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAt }
@@ -45,6 +47,21 @@ class FlightSessionStore(context: Context) {
         write(all().map { if (it.id == sessionId) it.copy(videoUri = videoUri) else it })
     }
 
+    @Synchronized
+    fun updateNote(sessionId: String, note: String) {
+        write(all().map { if (it.id == sessionId) it.copy(note = note.take(MAX_NOTE_LENGTH)) else it })
+    }
+
+    @Synchronized
+    fun delete(sessionId: String): Boolean {
+        val current = all()
+        val updated = current.filterNot { it.id == sessionId }
+        if (updated.size == current.size) return false
+        write(updated)
+        return true
+    }
+
+    @Synchronized
     private fun write(sessions: List<FlightSession>) {
         val array = JSONArray()
         sessions.forEach { session ->
@@ -53,6 +70,7 @@ class FlightSessionStore(context: Context) {
                 put("createdAt", session.createdAt)
                 put("durationMs", session.durationMs)
                 put("videoUri", session.videoUri)
+                put("note", session.note)
             })
         }
         prefs.edit().putString(KEY_SESSIONS, array.toString()).apply()
@@ -61,5 +79,6 @@ class FlightSessionStore(context: Context) {
     companion object {
         private const val KEY_SESSIONS = "items"
         private const val MAX_SESSIONS = 200
+        private const val MAX_NOTE_LENGTH = 1000
     }
 }
