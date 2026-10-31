@@ -63,6 +63,8 @@ fun CameraScreen(onBack: () -> Unit) {
     var latestDetections by remember { mutableStateOf("尚无检测结果") }
     var cameraMotionText by remember { mutableStateOf("等待相机运动分析") }
     var fps by remember { mutableStateOf(0f) }
+    var selectedQualityLabel by remember { mutableStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getString("video_quality", "HD 720p") ?: "HD 720p") }
+    var selectedFps by remember { mutableIntStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getInt("video_fps", 30)) }
     var flightActive by remember { mutableStateOf(false) }
     var flightStartMs by remember { mutableStateOf(0L) }
     var elapsedFlightMs by remember { mutableStateOf(0L) }
@@ -135,121 +137,136 @@ fun CameraScreen(onBack: () -> Unit) {
 
 
 
-            Column(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text("CPAC FLY", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.LightGray)) { Text("返回") }
-                }
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-                    Surface(
-                        modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(10.dp),
-                        color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            when { isRecording -> "● 录像中"; flightActive -> "计时中"; else -> "准备开始" },
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            color = androidx.compose.ui.graphics.Color.White,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                    if (flightActive && outOfViewCountdownMs > 0L) {
-                        Surface(
-                            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(10.dp),
-                            color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text("目标已离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = androidx.compose.ui.graphics.Color.White)
-                        }
-                    }
-                }
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("飞行时间", color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        "%02d:%05.2f".format(elapsedFlightMs / 60_000L, (elapsedFlightMs % 60_000L) / 1000.0),
-                        color = androidx.compose.ui.graphics.Color.White,
-                        style = MaterialTheme.typography.displayLarge
-                    )
-                }
-                Button(
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (flightActive) androidx.compose.ui.graphics.Color(0xFFB3261E) else androidx.compose.ui.graphics.Color(0xFF2E7D32),
-                        contentColor = androidx.compose.ui.graphics.Color.White
-                    ),
-                    onClick = {
-                        if (flightActive) {
-                            elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
-                            flightActive = false
-                            flightActiveRef.set(false)
-                            outOfViewController.reset()
-                            targetWasSeenRef.set(false)
-                            primaryTrackIdRef.set(-1L)
-                            outOfViewCountdownMs = 0L
-                            val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
-                            pendingSessionId = savedId
-                            pendingSessionIdRef.set(savedId)
-                            finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
-                            recordingRef.getAndSet(null)?.stop()
-                            recording = null
-                        } else {
-                            flightStartMs = SystemClock.elapsedRealtime()
-                            flightStartMsRef.set(flightStartMs)
-                            elapsedFlightMs = 0L
-                            outOfViewController.setTimeoutMs(autoStopSeconds.toLong() * 1_000L)
-                            outOfViewController.reset()
-                            targetWasSeenRef.set(false)
-                            primaryTrackIdRef.set(-1L)
-                            flightActiveRef.set(true)
-                            flightActive = true
-                        }
-                    }
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                Column(
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(if (flightActive) "停止计时并保存" else "开始计时", style = MaterialTheme.typography.titleLarge)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    TextButton(
-                        enabled = recordingAvailable || isRecording,
-                        colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
-                        onClick = {
-                            if (isRecording) recording?.stop() else {
-                                val capture = videoCapture ?: return@TextButton
-                                finalizedVideoUri = null
-                                finalizedVideoUriRef.set(null)
-                                val values = ContentValues().apply {
-                                    put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
-                                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
-                                }
-                                val output = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(values).build()
-                                recording = capture.output.prepareRecording(context, output).start(ContextCompat.getMainExecutor(context)) { event ->
-                                    if (event is VideoRecordEvent.Finalize) {
-                                        isRecording = false
-                                        if (!event.hasError()) {
-                                            finalizedVideoUri = event.outputResults.outputUri.toString()
-                                            finalizedVideoUriRef.set(finalizedVideoUri)
-                                            pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
-                                            status = "录像已保存到 Movies/CPAC FLY"
-                                        } else status = "录像保存失败：${event.error}"
-                                        recording = null
-                                        recordingRef.set(null)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("CPAC FLY", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                var qualityMenu by remember { mutableStateOf(false) }
+                                var fpsMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    TextButton(onClick = { qualityMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedQualityLabel) }
+                                    DropdownMenu(expanded = qualityMenu, onDismissRequest = { qualityMenu = false }) {
+                                        listOf("UHD 4K", "FHD 1080p", "HD 720p", "SD 480p").forEach { label ->
+                                            DropdownMenuItem(text = { Text(label) }, onClick = { selectedQualityLabel = label; qualityMenu = false })
+                                        }
                                     }
                                 }
-                                recordingRef.set(recording)
-                                isRecording = true
-                                status = "正在录制视频（无声音）"
+                                Box {
+                                    TextButton(onClick = { fpsMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("${selectedFps} fps") }
+                                    DropdownMenu(expanded = fpsMenu, onDismissRequest = { fpsMenu = false }) {
+                                        listOf(24, 30, 60).forEach { rate ->
+                                            DropdownMenuItem(text = { Text("${rate} fps") }, onClick = { selectedFps = rate; context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("video_fps", rate).apply(); fpsMenu = false })
+                                        }
+                                    }
+                                }
+                                TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("返回") }
                             }
                         }
-                    ) { Text(if (isRecording) "停止录像" else "录制视频") }
-                    TextButton(
-                        colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
-                        onClick = { settingsExpanded = true }
-                    ) { Text("设置") }
-                    if (!recordingAvailable) Text("录像不可用", color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelSmall)
+                        Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.62f), shape = MaterialTheme.shapes.small) {
+                            Text(
+                                when { isRecording -> "● 录像中"; flightActive -> "计时中"; else -> "准备就绪" },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                color = androidx.compose.ui.graphics.Color.White,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                    }
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (flightActive && outOfViewCountdownMs > 0L) {
+                            Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f), shape = MaterialTheme.shapes.small) {
+                                Text("目标离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒后停止", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = androidx.compose.ui.graphics.Color.White)
+                            }
+                        }
+                        Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.62f), shape = MaterialTheme.shapes.medium) {
+                            Column(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                Text("飞行时间", color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    "%02d:%05.2f".format(elapsedFlightMs / 60_000L, (elapsedFlightMs % 60_000L) / 1000.0),
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                    style = MaterialTheme.typography.displayLarge
+                                )
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            TextButton(
+                                enabled = recordingAvailable || isRecording,
+                                colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
+                                onClick = {
+                                    if (isRecording) recording?.stop() else {
+                                        val capture = videoCapture ?: return@TextButton
+                                        finalizedVideoUri = null
+                                        finalizedVideoUriRef.set(null)
+                                        val values = ContentValues().apply {
+                                            put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
+                                            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                                            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
+                                        }
+                                        val output = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(values).build()
+                                        recording = capture.output.prepareRecording(context, output).start(ContextCompat.getMainExecutor(context)) { event ->
+                                            if (event is VideoRecordEvent.Finalize) {
+                                                isRecording = false
+                                                if (!event.hasError()) {
+                                                    finalizedVideoUri = event.outputResults.outputUri.toString()
+                                                    finalizedVideoUriRef.set(finalizedVideoUri)
+                                                    pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
+                                                    status = "录像已保存到 Movies/CPAC FLY"
+                                                } else status = "录像保存失败：${event.error}"
+                                                recording = null
+                                                recordingRef.set(null)
+                                            }
+                                        }
+                                        recordingRef.set(recording)
+                                        isRecording = true
+                                        status = "正在录制视频（无声音）"
+                                    }
+                                }
+                            ) { Text(if (isRecording) "停止录像" else "录像", style = MaterialTheme.typography.labelLarge) }
+                            Button(
+                                modifier = Modifier.size(width = 196.dp, height = 64.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (flightActive) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFFE5E5E5),
+                                    contentColor = androidx.compose.ui.graphics.Color.Black
+                                ),
+                                onClick = {
+                                    if (flightActive) {
+                                        elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
+                                        flightActive = false
+                                        flightActiveRef.set(false)
+                                        outOfViewController.reset()
+                                        targetWasSeenRef.set(false)
+                                        primaryTrackIdRef.set(-1L)
+                                        outOfViewCountdownMs = 0L
+                                        val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
+                                        pendingSessionId = savedId
+                                        pendingSessionIdRef.set(savedId)
+                                        finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
+                                        recordingRef.getAndSet(null)?.stop()
+                                        recording = null
+                                    } else {
+                                        flightStartMs = SystemClock.elapsedRealtime()
+                                        flightStartMsRef.set(flightStartMs)
+                                        elapsedFlightMs = 0L
+                                        outOfViewController.setTimeoutMs(autoStopSeconds.toLong() * 1_000L)
+                                        outOfViewController.reset()
+                                        targetWasSeenRef.set(false)
+                                        primaryTrackIdRef.set(-1L)
+                                        flightActiveRef.set(true)
+                                        flightActive = true
+                                    }
+                                }
+                            ) {
+                                Text(if (flightActive) "停止并保存" else "开始试飞", style = MaterialTheme.typography.titleMedium)
+                            }
+                            TextButton(onClick = { settingsExpanded = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("设置") }
+                        }
+                        Text("录像 ${selectedQualityLabel} · ${selectedFps} fps", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
             if (settingsExpanded) {
@@ -290,7 +307,7 @@ fun CameraScreen(onBack: () -> Unit) {
                 )
             }
 
-            DisposableEffect(lifecycleOwner) {
+            DisposableEffect(lifecycleOwner, selectedQualityLabel, selectedFps) {
                 val providerFuture = ProcessCameraProvider.getInstance(context)
                 val mainExecutor = ContextCompat.getMainExecutor(context)
                 var boundProvider: ProcessCameraProvider? = null
@@ -299,12 +316,15 @@ fun CameraScreen(onBack: () -> Unit) {
                     try {
                         val provider = providerFuture.get()
                         boundProvider = provider
-                        val preview = Preview.Builder().build().also {
+                        val previewBuilder = Preview.Builder()
+                        androidx.camera.camera2.interop.Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, android.util.Range(selectedFps, selectedFps))
+                        val preview = previewBuilder.build().also {
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
+                        val requestedQuality = when (selectedQualityLabel) { "UHD 4K" -> Quality.UHD; "FHD 1080p" -> Quality.FHD; "SD 480p" -> Quality.SD; else -> Quality.HD }
                         val recorder = Recorder.Builder()
                             .setQualitySelector(QualitySelector.from(
-                                Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
+                                requestedQuality, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
                             ))
                             .build()
                         val capture = VideoCapture.withOutput(recorder)
