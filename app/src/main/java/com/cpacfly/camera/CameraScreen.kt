@@ -188,7 +188,7 @@ fun CameraScreen(onBack: () -> Unit) {
                         steps = 22,
                         enabled = !flightActive
                     )
-                    Text("可选 5 秒至 2 分钟；仅在识别到纸飞机后开始监测连续消失。", style = MaterialTheme.typography.bodySmall)
+                    Text("可选 5 秒至 2 分钟；开始计时后锁定一个动态目标 ID，连续丢失达到阈值时自动停止。", style = MaterialTheme.typography.bodySmall)
                     if (flightActive && outOfViewCountdownMs > 0L) {
                         Text("目标已离开画面：%.1f / %d 秒".format(
                             outOfViewCountdownMs / 1000.0, autoStopSeconds.toInt()
