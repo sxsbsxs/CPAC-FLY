@@ -37,9 +37,11 @@ import com.cpacfly.tracking.DetectionTracker
 import com.cpacfly.tracking.DetectionBox
 import com.cpacfly.tracking.DetectionCandidate
 import com.cpacfly.records.FlightSessionStore
+import com.cpacfly.timing.OutOfViewStopController
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
 fun CameraScreen(onBack: () -> Unit) {
@@ -64,6 +66,11 @@ fun CameraScreen(onBack: () -> Unit) {
     var recording by remember { mutableStateOf<Recording?>(null) }
     var pendingSessionId by remember { mutableStateOf<String?>(null) }
     var finalizedVideoUri by remember { mutableStateOf<String?>(null) }
+    var autoStopSeconds by remember { mutableFloatStateOf(15f) }
+    var outOfViewCountdownMs by remember { mutableLongStateOf(0L) }
+    val outOfViewController = remember { OutOfViewStopController(15_000L) }
+    val flightActiveRef = remember { AtomicBoolean(false) }
+    val targetWasSeenRef = remember { AtomicBoolean(false) }
     val sessionStore = remember { FlightSessionStore(context) }
 
     LaunchedEffect(flightActive, flightStartMs) {
@@ -123,10 +130,31 @@ fun CameraScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("飞行计时", style = MaterialTheme.typography.titleMedium)
                     Text("计时：%.2f 秒".format(elapsedFlightMs / 1000.0), style = MaterialTheme.typography.headlineSmall)
+                    Text("飞出镜头自动停止：${autoStopSeconds.toInt()} 秒")
+                    Slider(
+                        value = autoStopSeconds,
+                        onValueChange = {
+                            autoStopSeconds = it
+                            outOfViewController.setTimeoutMs(it.toLong() * 1_000L)
+                        },
+                        valueRange = 5f..120f,
+                        steps = 22,
+                        enabled = !flightActive
+                    )
+                    Text("可选 5 秒至 2 分钟；仅在识别到纸飞机后开始监测连续消失。", style = MaterialTheme.typography.bodySmall)
+                    if (flightActive && outOfViewCountdownMs > 0L) {
+                        Text("目标已离开画面：%.1f / %d 秒".format(
+                            outOfViewCountdownMs / 1000.0, autoStopSeconds.toInt()
+                        ), color = MaterialTheme.colorScheme.secondary)
+                    }
                     if (flightActive) {
                         Button(onClick = {
                             elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
                             flightActive = false
+                            flightActiveRef.set(false)
+                            outOfViewController.reset()
+                            targetWasSeenRef.set(false)
+                            outOfViewCountdownMs = 0L
                             pendingSessionId = sessionStore.add(elapsedFlightMs)
                             finalizedVideoUri?.let { sessionStore.attachVideo(pendingSessionId!!, it) }
                             recording?.stop()
@@ -135,6 +163,10 @@ fun CameraScreen(onBack: () -> Unit) {
                         Button(onClick = {
                             flightStartMs = SystemClock.elapsedRealtime()
                             elapsedFlightMs = 0L
+                            outOfViewController.setTimeoutMs(autoStopSeconds.toLong() * 1_000L)
+                            outOfViewController.reset()
+                            targetWasSeenRef.set(false)
+                            flightActiveRef.set(true)
                             flightActive = true
                         }) { Text("标记出手 · 开始计时") }
                     }
@@ -174,7 +206,7 @@ fun CameraScreen(onBack: () -> Unit) {
                         else "设备不支持预览、分析和录像同时运行。",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Text("停止计时会保存本地记录；自动识别出手和落地尚未接入。", style = MaterialTheme.typography.bodySmall)
+                    Text("飞出镜头自动停止依赖当前通用模型的 airplane 检测，正式纸飞机识别与真机验证尚未完成。", style = MaterialTheme.typography.bodySmall)
                 }
             }
             Card(Modifier.fillMaxWidth()) {
@@ -236,6 +268,37 @@ fun CameraScreen(onBack: () -> Unit) {
                                         categoryIndex = detection.categoryIndex
                                     )
                                 })
+
+                                val airplaneVisible = tracked.any {
+                                    it.detection.label.equals("airplane", ignoreCase = true)
+                                }
+                                if (airplaneVisible) targetWasSeenRef.set(true)
+                                if (flightActiveRef.get() && targetWasSeenRef.get()) {
+                                    val shouldStop = outOfViewController.onFrame(!airplaneVisible, timestampMs)
+                                    val missingMs = outOfViewController.missingDurationMs(timestampMs) ?: 0L
+                                    mainExecutor.execute {
+                                        outOfViewCountdownMs = missingMs
+                                    }
+                                    if (shouldStop) {
+                                        mainExecutor.execute {
+                                            if (flightActive) {
+                                                elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
+                                                flightActive = false
+                                                flightActiveRef.set(false)
+                                                targetWasSeenRef.set(false)
+                                                outOfViewCountdownMs = 0L
+                                                pendingSessionId = sessionStore.add(elapsedFlightMs)
+                                                finalizedVideoUri?.let { uri ->
+                                                    pendingSessionId?.let { id -> sessionStore.attachVideo(id, uri) }
+                                                }
+                                                recording?.stop()
+                                                status = "纸飞机连续离开画面达到 ${autoStopSeconds.toInt()} 秒，已自动停止并保存试飞"
+                                            }
+                                        }
+                                    }
+                                } else if (!flightActiveRef.get()) {
+                                    outOfViewController.reset()
+                                }
 
                                 latestDetections = if (tracked.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
