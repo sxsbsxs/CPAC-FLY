@@ -26,7 +26,7 @@ ARCore Depth：https://developers.google.com/ar/develop/depth
 - `tracking/`：跨帧目标关联与置信度；人工点选目标作为通用模型失效时的兜底
 - `altitude/`：飞机检测区域深度采样、相机坐标到地面相对高度转换、质量评估
 - `flightmetrics/`：高度滤波、下降率和剩余时间预测
-- `timing/`：时间基准、事件候选、人工修正
+- `timing/`：固定机位/手持跟拍模式、时间戳事件候选、相机运动补偿接口、人工逐帧修正
 - `analysis/`：二维轨迹、高度/下降率曲线与报告
 - `data/`：Room entities、DAO、repositories
 - `storage/`：视频 URI、文件生命周期
