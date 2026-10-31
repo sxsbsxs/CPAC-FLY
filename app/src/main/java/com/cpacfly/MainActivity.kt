@@ -5,6 +5,7 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -111,7 +112,39 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
             Text("本地试飞记录", style = MaterialTheme.typography.titleLarge)
             TextButton(onClick = onBack) { Text("返回") }
         }
-        TextButton(onClick = { sessions = store.all() }) { Text("刷新记录") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { sessions = store.all() }) { Text("刷新记录") }
+            TextButton(enabled = sessions.isNotEmpty(), onClick = {
+                val csv = buildString {
+                    appendLine("id,created_at,duration_seconds,aircraft,release_ms,landing_ms,video_uri,note")
+                    sessions.forEach { item ->
+                        val values = listOf(
+                            item.id,
+                            DateFormat.getDateTimeInstance().format(Date(item.createdAt)),
+                            "%.3f".format(java.util.Locale.US, item.durationMs / 1000.0),
+                            item.aircraftName.orEmpty(),
+                            item.releaseTimeMs?.toString().orEmpty(),
+                            item.landingTimeMs?.toString().orEmpty(),
+                            item.videoUri.orEmpty(),
+                            item.note
+                        )
+                        appendLine(values.joinToString(",") { value ->
+                            buildString {
+                                append('"')
+                                append(value.replace("\"", "\"\""))
+                                append('"')
+                            }
+                        })
+                    }
+                }
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_SUBJECT, "CPAC FLY 试飞记录")
+                    putExtra(Intent.EXTRA_TEXT, csv)
+                }
+                context.startActivity(Intent.createChooser(intent, "导出试飞记录"))
+            }) { Text("导出 CSV") }
+        }
         val measuredSessions = sessions.filter { it.durationMs > 0L }
         if (measuredSessions.isNotEmpty()) {
             val best = measuredSessions.minOf { it.durationMs }
