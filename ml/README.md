@@ -1,33 +1,30 @@
-# On-device model workspace
+# On-device object tracking
 
-## Initial pretrained baseline
+## Selected implementation
 
-The Android app uses Google's MediaPipe Tasks Vision Object Detector with the official EfficientDet-Lite0 float32 model (version 1), trained on COCO.
+CPAC FLY uses Google ML Kit Object Detection 17.0.2 with `STREAM_MODE`.
 
-- Model URL: https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite
-- Input: 320 × 320
-- Labels: COCO 80 classes
-- SHA-256: `40338edf5ec70d43e318b0a716a84d4564cd1802759a7a07170c7e43796dbf58`
-- Model file is downloaded during Gradle build into generated assets; it is not committed as a binary.
-- The MediaPipe model guide reports example Pixel 6 latency of about 61 ms CPU / 28 ms GPU for this float32 model; real devices must be benchmarked.
-- License evidence: the checksum-matched official MediaPipe model is reported as Apache-2.0 by the model mirror; re-check upstream asset terms before shipping a release.
+- API: https://developers.google.com/ml-kit/vision/object-detection/android
+- Model: ML Kit's built-in generic object detector, shipped through the SDK's supported model installation path.
+- Runtime: Android device; no inference server, account, paid API, user model training, or video upload.
+- Tracking: ML Kit assigns a tracking ID to an object across successive video frames.
+- Camera mode: stream mode tracks the prominent object; multiple-object detection is intentionally disabled to preserve real-time performance.
+- Offline: model/runtime is provided through the app dependency's supported packaging path; the app itself does not download an external TFLite file at startup.
 
-## Important limitation
+## Known limitations
 
-This is a generic COCO object detector, not a paper-airplane detector. The COCO `airplane` label describes conventional aircraft and does not guarantee detection of small paper airplanes. Treat detections as experimental. Do not claim paper-airplane recognition accuracy until evaluated on a separate paper-airplane test set.
+This is generic object detection and tracking, not paper-airplane classification. A small, fast, blurred, folded paper airplane may not be detected reliably. Coarse object labels do not establish that an object is a paper airplane.
 
-## Model evaluation checklist
+The app locks onto one tracked target when the user starts the flight timer. The out-of-view timer monitors that tracking ID rather than switching to another background object. Use a clean, uncluttered background and verify results in the saved video.
 
-- exact artifact URL, version, SHA-256, and license evidence
-- model input size, preprocessing, output schema
-- device benchmark, latency, memory, and accuracy metrics
-- known failure cases and intended-use limitations
-- false-positive/false-negative rates for paper airplanes across size, fold, color, background, lighting, and motion blur
+## Validation checklist (no model training)
 
-## Future model adaptation
+- Confirm the detector initializes on supported Android devices.
+- Confirm tracking IDs persist while a visible object moves between frames.
+- Measure analysis FPS, latency, memory, and thermal behavior on real phones.
+- Test paper planes of different sizes, folds, colors, distances, backgrounds, and lighting.
+- Record false detections, missed detections, occlusions, and target-ID switches.
+- Compare the app's out-of-view stop against the saved video timeline.
+- Keep uncertain flights manually reviewable; do not report unverified automatic timing as official results.
 
-Only if baseline + user-selected tracking prove insufficient:
-- collect consented paper-airplane frames and label bounding boxes
-- split train/validation/test by flight session, not adjacent frames
-- evaluate a small fine-tune or a dedicated lightweight detector
-- document dataset provenance and license before training
+No model training, dataset labeling, fine-tuning, or custom model hosting is part of this project.
