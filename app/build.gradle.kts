@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -45,10 +43,6 @@ android {
         compose = true
     }
 
-    // The pinned MediaPipe model is downloaded and checksum-verified at build time.
-    sourceSets.getByName("main").assets.srcDir(
-        layout.buildDirectory.dir("generated/mediapipeAssets")
-    )
 }
 
 dependencies {
@@ -82,44 +76,4 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-}
-
-// Google MediaPipe EfficientDet-Lite0 float32 model, version 1.
-// SHA-256 is pinned so a changed or substituted artifact fails the build.
-val detectorModel = layout.buildDirectory.file(
-    "generated/mediapipeAssets/efficientdet_lite0.tflite"
-)
-val downloadDetectorModel by tasks.registering {
-    outputs.file(detectorModel)
-    doLast {
-        val output = detectorModel.get().asFile
-        if (!output.exists()) {
-            output.parentFile.mkdirs()
-            val modelUrl = uri(
-                "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite"
-            ).toURL()
-            val connection = modelUrl.openConnection().apply {
-                connectTimeout = 30_000
-                readTimeout = 120_000
-            }
-            connection.getInputStream().use { input ->
-                output.outputStream().use { target -> input.copyTo(target) }
-            }
-        }
-
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(output.readBytes())
-            .joinToString("") { "%02x".format(it) }
-        val expected = "40338edf5ec70d43e318b0a716a84d4564cd1802759a7a07170c7e43796dbf58"
-        if (digest != expected) {
-            output.delete()
-            throw GradleException(
-                "EfficientDet-Lite0 checksum mismatch. Expected $expected, got $digest"
-            )
-        }
-    }
-}
-
-tasks.named("preBuild").configure {
-    dependsOn(downloadDetectorModel)
 }
