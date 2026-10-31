@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#050505">
+<title>CPAC FLY · Camera UI</title>
+<style>
+:root{color-scheme:dark;--bg:#050505;--panel:rgba(8,8,8,.78);--line:rgba(255,255,255,.16);--muted:#a6a6a6;--white:#fff}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Inter,Roboto,"Noto Sans SC",system-ui,sans-serif;color:var(--white)}
+body{background:radial-gradient(ellipse at 50% 44%,#252525 0,#111 42%,#050505 100%)}
+.camera{position:relative;height:100%;width:100%;padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom);display:flex;flex-direction:column;justify-content:space-between}
+.top{display:flex;align-items:center;justify-content:space-between;padding-top:14px}
+.brand{font-size:15px;font-weight:800;letter-spacing:.22em}.brand small{display:block;color:var(--muted);font-size:9px;font-weight:500;letter-spacing:.18em;margin-top:4px}
+.top-actions{display:flex;gap:8px}.chip{border:1px solid var(--line);background:rgba(0,0,0,.48);color:#fff;border-radius:999px;padding:9px 13px;font-size:11px;letter-spacing:.04em}
+.center{position:absolute;inset:22% 12% 34%;pointer-events:none;border:1px solid rgba(255,255,255,.13);border-radius:24px}
+.center:before,.center:after{content:"";position:absolute;background:rgba(255,255,255,.16)}
+.center:before{width:1px;height:100%;left:50%;top:0}.center:after{height:1px;width:100%;left:0;top:50%}
+.center-label{position:absolute;top:calc(22% - 28px);left:20px;color:#aaa;font-size:10px;letter-spacing:.12em}
+.bottom{position:relative;margin-top:auto;padding-bottom:22px;display:flex;flex-direction:column;gap:13px}
+.status{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(18px);border-radius:17px;padding:13px 15px}
+.status-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.status-title{font-size:11px;font-weight:700;letter-spacing:.12em}.live{display:flex;align-items:center;gap:6px;color:#d7d7d7;font-size:10px}
+.dot{width:6px;height:6px;background:#fff;border-radius:50%;box-shadow:0 0 10px #fff}
+.status-main{font-size:13px;font-weight:600}.status-sub{font-size:10px;color:var(--muted);margin-top:5px}
+.timer{text-align:center;padding:2px 0 4px}.timer-label{font-size:10px;color:#aaa;letter-spacing:.2em}.time{font-variant-numeric:tabular-nums;font-size:54px;line-height:1.15;font-weight:300;letter-spacing:-.06em}
+.controls{display:grid;grid-template-columns:1fr 1.5fr 1fr;align-items:center;gap:12px}
+.side{height:48px;border:1px solid var(--line);border-radius:14px;background:rgba(0,0,0,.5);color:#fff;font-size:12px}
+.primary{height:62px;border:0;border-radius:18px;background:#f4f4f4;color:#050505;font-size:15px;font-weight:800;letter-spacing:.04em;box-shadow:0 8px 32px #0009}
+.primary:active,.side:active{transform:scale(.98)}
+.footer{text-align:center;color:#858585;font-size:10px;letter-spacing:.04em}
+.panel{display:none;position:absolute;inset:auto 0 0;background:#111;border:1px solid var(--line);border-radius:22px 22px 0 0;padding:22px;box-shadow:0 -20px 60px #000b}
+.panel.open{display:block}.panel h2{font-size:17px;margin:0 0 18px}.setting{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #292929;font-size:13px}.setting span:last-child{color:#aaa}
+.close{margin-top:18px;width:100%;height:46px;border:0;border-radius:13px;background:#eee;color:#111;font-weight:700}
+@media(min-width:600px){.camera{max-width:520px;margin:auto}.time{font-size:68px}.bottom{padding-bottom:34px}}
+</style>
+</head>
+<body>
+<main class="camera">
+  <header class="top">
+    <div class="brand">CPAC FLY<small>FLIGHT LAB · CAMERA</small></div>
+    <div class="top-actions"><button class="chip" id="quality">HD 720p</button><button class="chip" id="fps">30 FPS</button></div>
+  </header>
+  <div class="center-label">FLIGHT TRACKING AREA</div><div class="center"></div>
+  <section class="bottom">
+    <div class="status">
+      <div class="status-head"><div class="status-title">识别状态</div><div class="live"><i class="dot"></i><span id="live">CAMERA READY</span></div></div>
+      <div class="status-main" id="detection">等待实时画面分析</div>
+      <div class="status-sub" id="model">纸飞机专用模型尚未完成本地权重验证 · 通用目标检测</div>
+    </div>
+    <div class="timer"><div class="timer-label">FLIGHT DURATION</div><div class="time" id="timer">00:00.00</div></div>
+    <div class="controls">
+      <button class="side" id="record">录像</button>
+      <button class="primary" id="start">开始试飞</button>
+      <button class="side" id="settings">设置</button>
+    </div>
+    <div class="footer">本地分析 · 不上传视频 · 无声音录制</div>
+  </section>
+  <section class="panel" id="panel"><h2>试飞设置</h2><div class="setting"><span>飞出画面自动停止</span><span>15 秒</span></div><div class="setting"><span>当前纸飞机</span><span>不指定机型</span></div><div class="setting"><span>视频保存位置</span><span>Movies / CPAC FLY</span></div><button class="close" id="close">完成</button></section>
+</main>
+<script>
+const panel=document.getElementById('panel');document.getElementById('settings').onclick=()=>panel.classList.add('open');document.getElementById('close').onclick=()=>panel.classList.remove('open');
+let active=false,started=0,raf=0;const timer=document.getElementById('timer');function tick(){if(!active)return;const t=performance.now()-started;const s=t/1000;timer.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+(s%60).toFixed(2).padStart(5,'0');raf=requestAnimationFrame(tick)}
+document.getElementById('start').onclick=()=>{active=!active;const b=document.getElementById('start');if(active){started=performance.now();b.textContent='停止并保存';document.getElementById('live').textContent='TIMING';tick()}else{cancelAnimationFrame(raf);b.textContent='开始试飞';document.getElementById('live').textContent='SAVED'}};
+document.getElementById('record').onclick=e=>{e.currentTarget.textContent=e.currentTarget.textContent==='录像'?'停止录像':'录像'};
+document.getElementById('quality').onclick=e=>{const a=['HD 720p','FHD 1080p','UHD 4K','SD 480p'];e.currentTarget.textContent=a[(a.indexOf(e.currentTarget.textContent)+1)%a.length]};
+document.getElementById('fps').onclick=e=>{const a=['24 FPS','30 FPS','60 FPS'];e.currentTarget.textContent=a[(a.indexOf(e.currentTarget.textContent)+1)%a.length]};
+window.CPACFlyUI={setStatus:(count,fps)=>{document.getElementById('detection').textContent=count>0?'检测到 '+count+' 个动态目标（尚未确认是纸飞机）':'暂未检测到动态目标';document.getElementById('model').textContent='图像分析 '+Number(fps||0).toFixed(1)+' FPS · 通用目标检测'},setFlightTime:value=>timer.textContent=value};
+</script>
+</body>
+</html>
