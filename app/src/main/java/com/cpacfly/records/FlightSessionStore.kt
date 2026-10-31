@@ -12,7 +12,9 @@ data class FlightSession(
     val videoUri: String?,
     val note: String = "",
     val releaseTimeMs: Long? = null,
-    val landingTimeMs: Long? = null
+    val landingTimeMs: Long? = null,
+    val aircraftId: String? = null,
+    val aircraftName: String? = null
 )
 
 class FlightSessionStore(context: Context) {
@@ -32,15 +34,25 @@ class FlightSessionStore(context: Context) {
                     videoUri = item.optString("videoUri").takeIf { it.isNotBlank() && it != "null" },
                     note = item.optString("note", ""),
                     releaseTimeMs = item.takeIf { !it.isNull("releaseTimeMs") }?.optLong("releaseTimeMs"),
-                    landingTimeMs = item.takeIf { !it.isNull("landingTimeMs") }?.optLong("landingTimeMs")
+                    landingTimeMs = item.takeIf { !it.isNull("landingTimeMs") }?.optLong("landingTimeMs"),
+                    aircraftId = item.optString("aircraftId").takeIf { it.isNotBlank() && it != "null" },
+                    aircraftName = item.optString("aircraftName").takeIf { it.isNotBlank() && it != "null" }
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAt }
     }
 
     @Synchronized
-    fun add(durationMs: Long, videoUri: String? = null): String {
-        val session = FlightSession(UUID.randomUUID().toString(), System.currentTimeMillis(), durationMs, videoUri)
+    fun add(
+        durationMs: Long,
+        videoUri: String? = null,
+        aircraftId: String? = null,
+        aircraftName: String? = null
+    ): String {
+        val session = FlightSession(
+            UUID.randomUUID().toString(), System.currentTimeMillis(), durationMs, videoUri,
+            aircraftId = aircraftId, aircraftName = aircraftName
+        )
         val updated = (listOf(session) + all()).take(MAX_SESSIONS)
         write(updated)
         return session.id
@@ -92,6 +104,8 @@ class FlightSessionStore(context: Context) {
                 put("note", session.note)
                 put("releaseTimeMs", session.releaseTimeMs ?: JSONObject.NULL)
                 put("landingTimeMs", session.landingTimeMs ?: JSONObject.NULL)
+                put("aircraftId", session.aircraftId)
+                put("aircraftName", session.aircraftName)
             })
         }
         prefs.edit().putString(KEY_SESSIONS, array.toString()).apply()
