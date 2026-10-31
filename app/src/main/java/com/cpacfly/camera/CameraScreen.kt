@@ -87,6 +87,7 @@ fun CameraScreen(onBack: () -> Unit) {
     var aircraftProfiles by remember { mutableStateOf(aircraftStore.all()) }
     var selectedAircraftId by remember { mutableStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getString("selected_aircraft_id", null)) }
     var aircraftMenuExpanded by remember { mutableStateOf(false) }
+    var settingsExpanded by remember { mutableStateOf(false) }
     val selectedAircraft = aircraftProfiles.firstOrNull { it.id == selectedAircraftId }
     val motionEstimator = remember { GlobalMotionEstimator(searchRadiusPx = 8, sampleStepPx = 6) }
 
@@ -137,65 +138,40 @@ fun CameraScreen(onBack: () -> Unit) {
                 }
             }
 
-            AndroidView(
-                factory = { previewView },
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-            Text(status, style = MaterialTheme.typography.bodyMedium)
-            Text("分析帧率：${"%.1f".format(fps)} FPS", style = MaterialTheme.typography.bodySmall)
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("本次试飞纸飞机", style = MaterialTheme.typography.titleSmall)
-                    Box {
-                        OutlinedButton(onClick = {
-                            aircraftProfiles = aircraftStore.all()
-                            aircraftMenuExpanded = true
-                        }, enabled = !flightActive) {
-                            Text(selectedAircraft?.name ?: "不指定机型")
-                        }
-                        DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("不指定机型") }, onClick = {
-                                selectedAircraftId = null
-                                context.getSharedPreferences("cpac_fly_settings", 0).edit().remove("selected_aircraft_id").apply()
-                                aircraftMenuExpanded = false
-                            })
-                            aircraftProfiles.forEach { profile ->
-                                DropdownMenuItem(text = { Text(profile.name) }, onClick = {
-                                    selectedAircraftId = profile.id
-                                    context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("selected_aircraft_id", profile.id).apply()
-                                    aircraftMenuExpanded = false
-                                })
-                            }
-                        }
-                    }
-                    Text("选择的机型会关联到本次训练记录。", style = MaterialTheme.typography.bodySmall)
+
+            Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("CPAC FLY", style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = onBack) { Text("关闭") }
                 }
-            }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("飞行计时", style = MaterialTheme.typography.titleMedium)
-                    Text("计时：%.2f 秒".format(elapsedFlightMs / 1000.0), style = MaterialTheme.typography.headlineSmall)
-                    Text("飞出镜头自动停止：${autoStopSeconds.toInt()} 秒")
-                    Slider(
-                        value = autoStopSeconds,
-                        onValueChange = {
-                            autoStopSeconds = it
-                            autoStopSecondsRef.set(it.toInt())
-                            context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("out_of_view_seconds", it.toInt()).apply()
-                            outOfViewController.setTimeoutMs(it.toLong() * 1_000L)
-                        },
-                        valueRange = 5f..120f,
-                        steps = 22,
-                        enabled = !flightActive
-                    )
-                    Text("可选 5 秒至 2 分钟；开始计时后锁定一个动态目标 ID，连续丢失达到阈值时自动停止。", style = MaterialTheme.typography.bodySmall)
-                    if (flightActive && outOfViewCountdownMs > 0L) {
-                        Text("目标已离开画面：%.1f / %d 秒".format(
-                            outOfViewCountdownMs / 1000.0, autoStopSeconds.toInt()
-                        ), color = MaterialTheme.colorScheme.secondary)
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    Surface(
+                        modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(10.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(
+                            when { isRecording -> "● 正在录像"; flightActive -> "正在计时"; else -> "准备就绪" },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
-                    if (flightActive) {
-                        Button(onClick = {
+                    if (flightActive && outOfViewCountdownMs > 0L) {
+                        Surface(
+                            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(10.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text("目标离开画面 %.1f / %d 秒".format(outOfViewCountdownMs / 1000.0, autoStopSeconds.toInt()), modifier = Modifier.padding(10.dp))
+                        }
+                    }
+                }
+                Text("%.2f 秒".format(elapsedFlightMs / 1000.0), modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center, style = MaterialTheme.typography.displaySmall)
+                Button(
+                    modifier = Modifier.fillMaxWidth().height(58.dp),
+                    onClick = {
+                        if (flightActive) {
                             elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
                             flightActive = false
                             flightActiveRef.set(false)
@@ -209,9 +185,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
                             recordingRef.getAndSet(null)?.stop()
                             recording = null
-                        }) { Text("标记落地 · 保存本次试飞") }
-                    } else {
-                        Button(onClick = {
+                        } else {
                             flightStartMs = SystemClock.elapsedRealtime()
                             flightStartMsRef.set(flightStartMs)
                             elapsedFlightMs = 0L
@@ -221,11 +195,15 @@ fun CameraScreen(onBack: () -> Unit) {
                             primaryTrackIdRef.set(-1L)
                             flightActiveRef.set(true)
                             flightActive = true
-                        }) { Text("标记出手 · 开始计时") }
+                        }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = recordingAvailable && !isRecording, onClick = {
-                            val capture = videoCapture ?: return@Button
+                ) { Text(if (flightActive) "落地 · 结束计时" else "出手 · 开始计时", style = MaterialTheme.typography.titleMedium) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    TextButton(enabled = recordingAvailable || isRecording, onClick = {
+                        if (isRecording) {
+                            recording?.stop()
+                        } else {
+                            val capture = videoCapture ?: return@TextButton
                             finalizedVideoUri = null
                             finalizedVideoUriRef.set(null)
                             val values = ContentValues().apply {
@@ -233,50 +211,65 @@ fun CameraScreen(onBack: () -> Unit) {
                                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
                                 put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
                             }
-                            val output = MediaStoreOutputOptions.Builder(
-                                context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                            ).setContentValues(values).build()
-                            recording = capture.output.prepareRecording(context, output)
-                                .start(ContextCompat.getMainExecutor(context)) { event ->
-                                    if (event is VideoRecordEvent.Finalize) {
-                                        isRecording = false
-                                        if (!event.hasError()) {
-                                            finalizedVideoUri = event.outputResults.outputUri.toString()
-                                            finalizedVideoUriRef.set(finalizedVideoUri)
-                                            pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
-                                            status = "录像已保存到 Movies/CPAC FLY"
-                                        } else {
-                                            status = "录像保存失败：${event.error}"
-                                        }
-                                        recording = null
-                                        recordingRef.set(null)
-                                    }
+                            val output = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(values).build()
+                            recording = capture.output.prepareRecording(context, output).start(ContextCompat.getMainExecutor(context)) { event ->
+                                if (event is VideoRecordEvent.Finalize) {
+                                    isRecording = false
+                                    if (!event.hasError()) {
+                                        finalizedVideoUri = event.outputResults.outputUri.toString()
+                                        finalizedVideoUriRef.set(finalizedVideoUri)
+                                        pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
+                                        status = "录像已保存到 Movies/CPAC FLY"
+                                    } else status = "录像保存失败：${event.error}"
+                                    recording = null
+                                    recordingRef.set(null)
                                 }
+                            }
                             recordingRef.set(recording)
                             isRecording = true
                             status = "正在录制视频（无声音）"
-                        }) { Text("开始录像") }
-                        OutlinedButton(enabled = isRecording, onClick = { recording?.stop() }) { Text("停止录像") }
-                    }
-                    Text(
-                        if (recordingAvailable) "录像保存到系统媒体库 Movies/CPAC FLY；默认不录音。"
-                        else "设备不支持预览、分析和录像同时运行。",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text("离画自动停止依据动态目标的连续追踪状态；请尽量让画面中只有本次试飞目标。模型不会判断目标是否一定是纸飞机。", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }) { Text(if (isRecording) "停止录像" else "录制视频") }
+                    TextButton(onClick = { settingsExpanded = true }) { Text("设置 · ${selectedAircraft?.name ?: "未选机型"}") }
+                    if (!recordingAvailable) Text("设备不支持录像", style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text("动态目标追踪结果", style = MaterialTheme.typography.titleMedium)
-                    Text(latestDetections, style = MaterialTheme.typography.bodyMedium)
-                    Text("手持跟拍运动估计：$cameraMotionText", style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        "ML Kit 为连续帧中的物体分配追踪 ID；类别标签为粗分类，不代表纸飞机专用识别。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
+            if (settingsExpanded) {
+                AlertDialog(
+                    onDismissRequest = { settingsExpanded = false },
+                    title = { Text("试飞设置") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("飞出画面自动停止：${autoStopSeconds.toInt()} 秒")
+                            Slider(value = autoStopSeconds, onValueChange = {
+                                autoStopSeconds = it
+                                autoStopSecondsRef.set(it.toInt())
+                                context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("out_of_view_seconds", it.toInt()).apply()
+                                outOfViewController.setTimeoutMs(it.toLong() * 1_000L)
+                            }, valueRange = 5f..120f, steps = 22, enabled = !flightActive)
+                            Text("本次纸飞机")
+                            Box {
+                                OutlinedButton(onClick = { aircraftProfiles = aircraftStore.all(); aircraftMenuExpanded = true }) { Text(selectedAircraft?.name ?: "不指定机型") }
+                                DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }) {
+                                    DropdownMenuItem(text = { Text("不指定机型") }, onClick = {
+                                        selectedAircraftId = null
+                                        context.getSharedPreferences("cpac_fly_settings", 0).edit().remove("selected_aircraft_id").apply()
+                                        aircraftMenuExpanded = false
+                                    })
+                                    aircraftProfiles.forEach { profile ->
+                                        DropdownMenuItem(text = { Text(profile.name) }, onClick = {
+                                            selectedAircraftId = profile.id
+                                            context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("selected_aircraft_id", profile.id).apply()
+                                            aircraftMenuExpanded = false
+                                        })
+                                    }
+                                }
+                            }
+                            Text("录像保存在系统相册 Movies/CPAC FLY，不录制声音。", style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { settingsExpanded = false }) { Text("完成") } }
+                )
             }
 
             DisposableEffect(lifecycleOwner) {
