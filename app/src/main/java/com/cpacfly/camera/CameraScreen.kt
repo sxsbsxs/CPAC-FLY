@@ -23,6 +23,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
+import com.cpacfly.tracking.DetectionTracker
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -84,6 +85,7 @@ fun CameraScreen(onBack: () -> Unit) {
         } else {
             val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
             val detectorRef = remember { AtomicReference<MediaPipeObjectDetector?>(null) }
+            val tracker = remember { DetectionTracker() }
             val previewView = remember {
                 PreviewView(context).apply {
                     scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -158,8 +160,9 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }!!
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
                                 val detections = detector.detect(frameBitmap, timestampMs)
+                                val tracked = tracker.update(detections)
 
-                                latestDetections = if (detections.isEmpty()) {
+                                latestDetections = if (tracked.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
                                 } else {
                                     detections.sortedByDescending { it.score }
