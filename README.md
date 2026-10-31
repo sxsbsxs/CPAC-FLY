@@ -4,7 +4,7 @@
 
 CPAC FLY aims to help users record flights, review video, understand flight paths, estimate ground-relative altitude and descent trends, and improve hang-time through repeatable training.
 
-> **Project status:** early development. The first milestone is an installable Android test build. Automatic aircraft detection, timing, and altitude estimation are planned capabilities, not yet validated features.
+> **Project status:** early development. The first milestone is an installable Android test build. Automatic paper-airplane recognition, timing, and altitude estimation are not yet validated features. The current pretrained detector is a generic COCO baseline, not a paper-airplane-specific model.
 
 ## First release scope
 
@@ -14,7 +14,7 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 - A timing workflow with manual correction.
 - Live estimated ground-relative altitude, descent rate, remaining-flight-time range, and confidence/quality status.
 - Video review, slow-motion playback, 2D image-plane trajectory, altitude and descent-rate plots.
-- On-device aircraft detection and tracking after a suitable, license-reviewed model has been evaluated.
+- On-device generic object-detection baseline using MediaPipe EfficientDet-Lite0; paper-airplane-specific recognition remains unvalidated.
 - Training history and session reports.
 - No leaderboard integration in the initial release.
 - No account or cloud backend required for the first local-testing milestone.
@@ -26,11 +26,11 @@ CPAC FLY aims to help users record flights, review video, understand flight path
 - Optional ARCore Depth API on supported devices, with runtime capability checks
 - Room for local structured data
 - Android media storage for recorded video
-- LiteRT for on-device inference once the model and its license are approved
+- MediaPipe Tasks Vision for the initial on-device detection baseline; model limitations and license evidence are documented
 
 CameraX: https://developer.android.com/media/camera/camerax
 ARCore Depth: https://developers.google.com/ar/develop/depth
-LiteRT: https://developers.google.com/edge/litert
+MediaPipe Object Detector: https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
 
 ## Repository layout
 
@@ -45,7 +45,7 @@ ml/                  Dataset, training, evaluation, and model metadata (no large
 
 Open this repository in a current stable Android Studio installation, allow Gradle sync, then run the `app` configuration on an Android device or emulator.
 
-The first source scaffold is intentionally small. A Gradle wrapper and CI workflow will be added once the Android build toolchain is pinned and verified. Do not treat an unverified source snapshot as a tested APK.
+The source now includes a MediaPipe detector wrapper and a checksum-pinned EfficientDet-Lite0 model download task. A Gradle wrapper and CI build verification are still pending. Do not treat an unverified source snapshot as a tested APK.
 
 ## Important measurement limitations
 
