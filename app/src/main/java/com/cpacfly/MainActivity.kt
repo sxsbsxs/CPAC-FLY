@@ -296,6 +296,7 @@ private fun SessionCard(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
             Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
+            session.aircraftName?.let { Text("纸飞机：$it", style = MaterialTheme.typography.bodySmall) }
             if (session.releaseTimeMs != null && session.landingTimeMs != null) {
                 Text("已人工复核视频时间戳 · 出手 %.3f 秒 / 落地 %.3f 秒".format(
                     session.releaseTimeMs / 1000.0, session.landingTimeMs / 1000.0
