@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.cpacfly.camera.CameraScreen
 import com.cpacfly.records.FlightSession
 import com.cpacfly.records.FlightSessionStore
+import com.cpacfly.records.FlightMeasurementStore
 import com.cpacfly.records.PaperAircraft
 import com.cpacfly.records.PaperAircraftStore
 import com.cpacfly.video.VideoFrameTimeline
@@ -102,6 +103,7 @@ private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit, onO
 private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
     val context = LocalContext.current
     val store = remember { FlightSessionStore(context) }
+    val measurementStore = remember { FlightMeasurementStore(context) }
     var sessions by remember { mutableStateOf(store.all()) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -117,7 +119,7 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
                     SessionCard(
                         session = session,
                         onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
-                        onDelete = { store.delete(session.id); sessions = store.all() },
+                        onDelete = { store.delete(session.id); measurementStore.deleteSessionData(session.id); sessions = store.all() },
                         onReview = { onOpenReview(session.id) }
                     )
                 }
