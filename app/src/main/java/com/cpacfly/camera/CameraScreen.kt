@@ -153,7 +153,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                     TextButton(onClick = { qualityMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedQualityLabel) }
                                     DropdownMenu(expanded = qualityMenu, onDismissRequest = { qualityMenu = false }) {
                                         listOf("UHD 4K", "FHD 1080p", "HD 720p", "SD 480p").forEach { label ->
-                                            DropdownMenuItem(text = { Text(label) }, onClick = { selectedQualityLabel = label; qualityMenu = false })
+                                            DropdownMenuItem(text = { Text(label) }, onClick = { selectedQualityLabel = label; context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("video_quality", label).apply(); qualityMenu = false })
                                         }
                                     }
                                 }
