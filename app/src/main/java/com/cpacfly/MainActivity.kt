@@ -250,7 +250,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
             } finally {
                 extractor.release()
             }
-            duration to timestamps
+            duration to timestamps.distinct().sorted()
         }
         videoDurationMs = index.first
         frameTimesMs = index.second
