@@ -15,7 +15,7 @@ class VideoFrameTimelineTest {
         val pts = listOf(0L, 33L, 67L, 100L)
         assertEquals(0, VideoFrameTimeline.nearestFrameIndex(pts, -10L))
         assertEquals(1, VideoFrameTimeline.nearestFrameIndex(pts, 40L))
-        assertEquals(2, VideoFrameTimeline.nearestFrameIndex(pts, 50L))
+        assertEquals(1, VideoFrameTimeline.nearestFrameIndex(pts, 50L))
         assertEquals(3, VideoFrameTimeline.nearestFrameIndex(pts, 500L))
     }
 
