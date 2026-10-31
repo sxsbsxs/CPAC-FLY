@@ -41,7 +41,7 @@ ML Kit Object Detection: https://developers.google.com/ml-kit/vision/object-dete
 ```text
 app/                 Android application
 docs/                Product, architecture, timing, and release documentation
-ml/                  Dataset, training, evaluation, and model metadata (no large datasets committed)
+ml/                  ML Kit integration notes and no-training validation checklist
 .github/workflows/   CI build workflow
 ```
 
