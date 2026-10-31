@@ -165,10 +165,10 @@ fun CameraScreen(onBack: () -> Unit) {
                                 latestDetections = if (tracked.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
                                 } else {
-                                    detections.sortedByDescending { it.score }
+                                    tracked.sortedByDescending { it.detection.score }
                                         .take(5)
                                         .joinToString("\n") {
-                                            "${it.label} · ${(it.score * 100).toInt()}%"
+                                            "目标 #${it.trackId} · ${it.detection.label} · ${(it.detection.score * 100).toInt()}%"
                                         }
                                 }
                                 status = "摄像头运行中 · 本地 AI 推理"
