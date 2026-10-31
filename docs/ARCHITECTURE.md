@@ -13,7 +13,7 @@
 - OpenCV：按需用于相机标定、图像几何和视觉追踪；引入前审查版本与许可证
 
 CameraX：https://developer.android.com/media/camera/camerax
-Google ML Kit Object Detector：https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
+Google ML Kit Object Detector：https://developers.google.com/ml-kit/vision/object-detection/android
 ARCore Depth：https://developers.google.com/ar/develop/depth
 
 ## 分层
@@ -31,13 +31,10 @@ ARCore Depth：https://developers.google.com/ar/develop/depth
 - `data/`：Room entities、DAO、repositories
 - `storage/`：视频 URI、文件生命周期
 
-## 第一阶段预训练模型边界
+## 动态目标追踪边界
 
-EfficientDet-Lite0 是 COCO 80 类通用检测模型，不是纸飞机专用模型。它可以作为 Android 端推理和检测框管线的现成基线，但 COCO 中的 airplane 类不等于纸飞机类别，快速移动、很小或形状特殊的纸飞机可能完全漏检或被错分。因此：
-- 不把通用模型的 airplane 框直接宣称为可靠的纸飞机识别。
-- 先用它验证模型加载、图像预处理、检测结果和设备端延迟。
-- 飞机目标无法被模型稳定识别时，下一步接入用户点选 ROI + 视觉追踪；再根据真实误检样本评估是否需要少量微调。
-- 只有经过纸飞机专门测试集验证后，才开放“自动纸飞机识别”标识。
+ML Kit STREAM_MODE 对连续视频帧中的通用物体分配 tracking ID，可在帧间保持目标关联。它不是纸飞机专用分类器，粗类别标签不能证明目标是折纸飞机。当前相机流程在用户开始计时后，锁定首个可见候选中面积最大的目标 ID；之后只监测该 ID，避免背景中其他物体接管计时。建议使用干净背景，并在录像复核中校正出手/落地时间。高速、小尺寸、模糊或遮挡的纸飞机仍可能漏检，离画自动停止需要真机验证。
+
 
 ## 数据流
 
