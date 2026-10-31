@@ -55,7 +55,7 @@ private fun AppBootstrap() {
     var showAircraft by remember { mutableStateOf(false) }
     var reviewSessionId by remember { mutableStateOf<String?>(null) }
     when {
-        showCamera -> CameraScreen(onBack = { showCamera = false })
+        showCamera -> CameraScreen()
         reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
         showRecords -> RecordsScreen(onBack = { showRecords = false }, onOpenReview = { reviewSessionId = it })
         showAircraft -> AircraftScreen(onBack = { showAircraft = false })
