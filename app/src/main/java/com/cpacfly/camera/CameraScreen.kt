@@ -319,9 +319,8 @@ fun CameraScreen(onBack: () -> Unit) {
                                     (((pixel shr 16 and 0xff) * 299 + (pixel shr 8 and 0xff) * 587 + (pixel and 0xff) * 114) / 1000)
                                 }
                                 val motion = motionEstimator.estimate(gray, 128, 96)
-                                val detector = detectorRef.updateAndGet { existing ->
-                                    existing ?: MlKitStreamObjectDetector(context.applicationContext)
-                                }
+                                val detector = detectorRef.get()
+                                    ?: MlKitStreamObjectDetector(context.applicationContext).also { detectorRef.set(it) }
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
                                 val detections = detector.detect(frameBitmap, timestampMs)
                                 val tracked = tracker.update(detections.map { detection ->
