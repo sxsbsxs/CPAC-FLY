@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
 import com.cpacfly.tracking.DetectionTracker
+import com.cpacfly.vision.GlobalMotionEstimator
 import com.cpacfly.tracking.DetectionBox
 import com.cpacfly.tracking.DetectionCandidate
 import com.cpacfly.records.FlightSessionStore
@@ -58,6 +59,7 @@ fun CameraScreen(onBack: () -> Unit) {
     var permissionDenied by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("等待摄像头启动") }
     var latestDetections by remember { mutableStateOf("尚无检测结果") }
+    var cameraMotionText by remember { mutableStateOf("等待相机运动分析") }
     var fps by remember { mutableStateOf(0f) }
     var flightActive by remember { mutableStateOf(false) }
     var flightStartMs by remember { mutableStateOf(0L) }
@@ -79,6 +81,7 @@ fun CameraScreen(onBack: () -> Unit) {
     val pendingSessionIdRef = remember { AtomicReference<String?>(null) }
     val targetWasSeenRef = remember { AtomicBoolean(false) }
     val sessionStore = remember { FlightSessionStore(context) }
+    val motionEstimator = remember { GlobalMotionEstimator(searchRadiusPx = 8, sampleStepPx = 6) }
 
     LaunchedEffect(flightActive, flightStartMs) {
         while (flightActive) {
@@ -230,6 +233,7 @@ fun CameraScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(12.dp)) {
                     Text("通用模型检测结果", style = MaterialTheme.typography.titleMedium)
                     Text(latestDetections, style = MaterialTheme.typography.bodyMedium)
+                    Text("手持跟拍运动估计：$cameraMotionText", style = MaterialTheme.typography.bodySmall)
                     Text(
                         "当前模型识别 COCO 通用类别，并非纸飞机专用模型。即使出现 airplane 标签，也不能视为已可靠识别纸飞机。",
                         style = MaterialTheme.typography.bodySmall,
@@ -269,6 +273,15 @@ fun CameraScreen(onBack: () -> Unit) {
                             try {
                                 val frameBitmap = image.toUprightBitmap()
                                 bitmap = frameBitmap
+                                val motionSmall = Bitmap.createScaledBitmap(frameBitmap, 128, 96, true)
+                                val motionArgb = IntArray(128 * 96)
+                                motionSmall.getPixels(motionArgb, 0, 128, 0, 0, 128, 96)
+                                if (motionSmall !== frameBitmap) motionSmall.recycle()
+                                val gray = IntArray(motionArgb.size) { index ->
+                                    val pixel = motionArgb[index]
+                                    (((pixel shr 16 and 0xff) * 299 + (pixel shr 8 and 0xff) * 587 + (pixel and 0xff) * 114) / 1000)
+                                }
+                                val motion = motionEstimator.estimate(gray, 128, 96)
                                 val detector = detectorRef.updateAndGet { existing ->
                                     existing ?: MediaPipeObjectDetector(context.applicationContext)
                                 }!!
@@ -336,6 +349,11 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }
                                 mainExecutor.execute {
                                     latestDetections = detectionSummary
+                                    cameraMotionText = if (motion.reliable) {
+                                        "平移 Δx=%.3f、Δy=%.3f，置信度 %.2f".format(motion.shiftX, motion.shiftY, motion.confidence)
+                                    } else {
+                                        "画面纹理不足或估计不可靠（%.2f）".format(motion.confidence)
+                                    }
                                     status = "摄像头运行中 · 本地 AI 推理"
                                     measuredFps?.let { fps = it }
                                 }
