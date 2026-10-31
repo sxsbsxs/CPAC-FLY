@@ -5,7 +5,7 @@ Before release, verify the exact license for each dependency, model weight, data
 | Component / asset | Exact version | Source URL | License evidence | Review status |
 |---|---|---|---|---|
 | AndroidX / Jetpack Compose | Pinned in app Gradle | https://developer.android.com/jetpack | Review exact artifact metadata | Pending |
-| CameraX | Not yet integrated | https://developer.android.com/media/camera/camerax | Review exact artifact metadata when added | Pending |
+| CameraX | 1.6.2 (camera-camera2, camera-lifecycle, camera-view) | https://developer.android.com/jetpack/androidx/releases/camera | AndroidX CameraX release; verify transitive notices for release | Integrated; preserve notices |
 | Room | Not yet integrated | https://developer.android.com/training/data-storage/room | Review exact artifact metadata when added | Pending |
 | MediaPipe Tasks Vision | 1.1.0 | https://developers.google.com/edge/mediapipe/solutions/vision/object_detector | Apache-2.0 in published Maven metadata | Integrated; preserve notices |
 | EfficientDet-Lite0 model | Official MediaPipe float32 v1; SHA-256 pinned in Gradle | https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite | Checksum-matched model mirror reports Apache-2.0; confirm upstream model terms before release | Integrated as build-time download; final license verification pending |
