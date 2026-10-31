@@ -3,83 +3,52 @@ package com.cpacfly.detection
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
-import java.io.File
-import java.nio.ByteBuffer
-import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.ObjectDetectorOptions
+import com.google.android.gms.tasks.Tasks
 
 /**
- * Local, on-device object detector backed by Google's pretrained
- * MediaPipe EfficientDet-Lite0 COCO model.
- *
- * Important: the COCO model is a generic 80-class detector. It was not trained
- * specifically for paper airplanes, so "airplane" detections are only a
- * prototype signal and must not be presented as reliable paper-plane recognition.
+ * Google ML Kit's bundled on-device object detector in STREAM_MODE.
+ * ML Kit assigns tracking IDs across successive video frames. It tracks generic
+ * objects; its coarse labels are not a paper-airplane classifier.
  */
-class MediaPipeObjectDetector(context: Context, modelFile: File) : AutoCloseable {
-
+class MediaPipeObjectDetector(context: Context, @Suppress("UNUSED_PARAMETER") modelFile: java.io.File? = null) : AutoCloseable {
     data class Detection(
         val box: RectF,
         val label: String,
         val score: Float,
-        val categoryIndex: Int
+        val categoryIndex: Int,
+        val trackingId: Int? = null
     )
 
-    private val detector: ObjectDetector
-
-    init {
-        val options = ObjectDetector.ObjectDetectorOptions.builder()
-            .setBaseOptions(
-                BaseOptions.builder()
-                    .setModelAssetBuffer(ByteBuffer.allocateDirect(modelFile.length().toInt()).apply { put(modelFile.readBytes()); rewind() })
-                    .build()
-            )
-            .setRunningMode(RunningMode.VIDEO)
-            .setMaxResults(MAX_RESULTS)
-            .setScoreThreshold(SCORE_THRESHOLD)
+    private val detector = ObjectDetection.getClient(
+        ObjectDetectorOptions.Builder()
+            .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+            .enableMultipleObjects()
+            .enableClassification()
             .build()
+    )
 
-        detector = ObjectDetector.createFromOptions(context, options)
-    }
-
-    /**
-     * Run inference on a decoded camera frame.
-     * timestampMs must be monotonic and derived from the camera capture timestamp,
-     * not from UI time or inference completion time.
-     */
     @Synchronized
     fun detect(bitmap: Bitmap, timestampMs: Long): List<Detection> {
         require(timestampMs >= 0L) { "timestampMs must be non-negative" }
-
-        val mpImage = BitmapImageBuilder(bitmap).build()
-        val result = detector.detectForVideo(mpImage, timestampMs)
-
-        return result.detections().mapNotNull { detection ->
-            val category = detection.categories().maxByOrNull { it.score() }
-                ?: return@mapNotNull null
-            val bounds = detection.boundingBox()
+        val image = InputImage.fromBitmap(bitmap, 0)
+        val objects = Tasks.await(detector.process(image))
+        return objects.map { item ->
+            val label = item.labels.firstOrNull()
+            val box = item.boundingBox
             Detection(
-                box = RectF(
-                    bounds.left.toFloat(),
-                    bounds.top.toFloat(),
-                    bounds.right.toFloat(),
-                    bounds.bottom.toFloat()
-                ),
-                label = category.categoryName(),
-                score = category.score(),
-                categoryIndex = category.index()
+                box = RectF(box),
+                label = label?.text?.takeIf { it.isNotBlank() } ?: "unknown",
+                score = label?.confidence ?: 0.5f,
+                categoryIndex = label?.index ?: -1,
+                trackingId = item.trackingId
             )
         }
     }
 
     override fun close() {
         detector.close()
-    }
-
-    companion object {
-        private const val MAX_RESULTS = 10
-        private const val SCORE_THRESHOLD = 0.30f
     }
 }
