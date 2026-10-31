@@ -5,15 +5,16 @@
 - Kotlin：应用主语言
 - Jetpack Compose：界面
 - CameraX：预览、图像分析、录像
+- MediaPipe Tasks Vision 1.1.0：Android 端目标检测 API
+- EfficientDet-Lite0（MediaPipe 官方 float32 v1，COCO 预训练）：第一阶段通用检测基线，构建时下载并校验 SHA-256
 - ARCore Depth API（可选能力）：支持设备上的逐帧深度图；运行时检查能力，不作为所有设备的硬依赖
 - Room：试飞、飞机档案和事件数据
 - MediaStore / app-specific storage：视频文件
-- LiteRT：模型选定并完成许可证审查后接入本地推理
 - OpenCV：按需用于相机标定、图像几何和视觉追踪；引入前审查版本与许可证
 
 CameraX：https://developer.android.com/media/camera/camerax
+MediaPipe Object Detector：https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
 ARCore Depth：https://developers.google.com/ar/develop/depth
-LiteRT：https://developers.google.com/edge/litert
 
 ## 分层
 
@@ -21,18 +22,26 @@ LiteRT：https://developers.google.com/edge/litert
 - `camera/`：CameraX 生命周期、录像与帧采集
 - `calibration/`：相机内参、畸变、地面参考面和场地尺度标定
 - `depth/`：ARCore 能力探测、深度图采集、深度置信/有效性检查
-- `detection/`：模型接口、预处理、检测结果
-- `tracking/`：跨帧目标关联与置信度
+- `detection/`：MediaPipe Object Detector 封装、预处理、检测结果
+- `tracking/`：跨帧目标关联与置信度；人工点选目标作为通用模型失效时的兜底
 - `altitude/`：飞机检测区域深度采样、相机坐标到地面相对高度转换、质量评估
-- `flightmetrics/`：高度滤波、下降率、剩余飞行时间区间预测
+- `flightmetrics/`：高度滤波、下降率和剩余时间预测
 - `timing/`：时间基准、事件候选、人工修正
 - `analysis/`：二维轨迹、高度/下降率曲线与报告
 - `data/`：Room entities、DAO、repositories
 - `storage/`：视频 URI、文件生命周期
 
+## 第一阶段预训练模型边界
+
+EfficientDet-Lite0 是 COCO 80 类通用检测模型，不是纸飞机专用模型。它可以作为 Android 端推理和检测框管线的现成基线，但 COCO 中的 airplane 类不等于纸飞机类别，快速移动、很小或形状特殊的纸飞机可能完全漏检或被错分。因此：
+- 不把通用模型的 airplane 框直接宣称为可靠的纸飞机识别。
+- 先用它验证模型加载、图像预处理、检测结果和设备端延迟。
+- 飞机目标无法被模型稳定识别时，下一步接入用户点选 ROI + 视觉追踪；再根据真实误检样本评估是否需要少量微调。
+- 只有经过纸飞机专门测试集验证后，才开放“自动纸飞机识别”标识。
+
 ## 数据流
 
-CameraX frame + capture timestamp → detector → tracker → optional ARCore depth sample → calibrated ground-relative altitude → robust temporal filter → descent-rate estimator → remaining-time predictor → live UI + Room samples.
+CameraX frame + capture timestamp → detector → tracker/manual ROI fallback → optional ARCore depth sample → calibrated ground-relative altitude → robust temporal filter → descent-rate estimator → remaining-time predictor → live UI + Room samples.
 
 录像时间线和图像分析帧时间戳需要明确关联。不可用 Compose 重绘时间、按钮响应时间或处理完成时间替代原始采集时间。ARCore 深度帧与相机帧必须按时间戳和视场参数对齐。
 
