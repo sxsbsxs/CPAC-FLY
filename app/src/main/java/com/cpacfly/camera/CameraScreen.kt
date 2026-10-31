@@ -280,11 +280,9 @@ fun CameraScreen() {
             if (settingsExpanded) {
                 AlertDialog(
                     onDismissRequest = { settingsExpanded = false },
-                    colors = AlertDialogDefaults.colors(
-                        containerColor = androidx.compose.ui.graphics.Color.Black,
-                        titleContentColor = androidx.compose.ui.graphics.Color.White,
-                        textContentColor = androidx.compose.ui.graphics.Color.White
-                    ),
+                    containerColor = androidx.compose.ui.graphics.Color.Black,
+                    titleContentColor = androidx.compose.ui.graphics.Color.White,
+                    textContentColor = androidx.compose.ui.graphics.Color.White,
                     title = { Text("试飞设置") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
