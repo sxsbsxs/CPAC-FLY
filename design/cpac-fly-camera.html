@@ -18,22 +18,22 @@ body{background:radial-gradient(ellipse at 50% 44%,#252525 0,#111 42%,#050505 10
 .center:before{width:1px;height:100%;left:50%;top:0}.center:after{height:1px;width:100%;left:0;top:50%}
 .center-label{position:absolute;top:calc(22% - 28px);left:20px;color:#aaa;font-size:10px;letter-spacing:.12em}
 .bottom{position:relative;margin-top:auto;padding-bottom:22px;display:flex;flex-direction:column;gap:13px}
-.status{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(18px);border-radius:17px;padding:13px 15px}
+.status{border:1px solid rgba(0,0,0,.12);background:#fff;color:#080808;backdrop-filter:blur(18px);border-radius:17px;padding:13px 15px}
 .status-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
-.status-title{font-size:11px;font-weight:700;letter-spacing:.12em}.live{display:flex;align-items:center;gap:6px;color:#d7d7d7;font-size:10px}
-.dot{width:6px;height:6px;background:#fff;border-radius:50%;box-shadow:0 0 10px #fff}
-.status-main{font-size:13px;font-weight:600}.status-sub{font-size:10px;color:var(--muted);margin-top:5px}
+.status-title{font-size:11px;font-weight:700;letter-spacing:.12em;color:#080808}.live{display:flex;align-items:center;gap:6px;color:#333;font-size:10px}
+.dot{width:6px;height:6px;background:#080808;border-radius:50%;box-shadow:0 0 8px #0005}
+.status-main{font-size:13px;font-weight:600;color:#080808}.status-sub{font-size:10px;color:#555;margin-top:5px}
 .timer{text-align:center;padding:2px 0 4px}.timer-label{font-size:10px;color:#aaa;letter-spacing:.2em}.time{font-variant-numeric:tabular-nums;font-size:54px;line-height:1.15;font-weight:300;letter-spacing:-.06em}
 .controls{display:grid;grid-template-columns:1fr 1.5fr 1fr;align-items:center;gap:12px}
 .side{height:48px;border:1px solid var(--line);border-radius:14px;background:rgba(0,0,0,.5);color:#fff;font-size:12px}
 .primary{height:62px;border:0;border-radius:18px;background:#f4f4f4;color:#050505;font-size:15px;font-weight:800;letter-spacing:.04em;box-shadow:0 8px 32px #0009}
 .primary:active,.side:active{transform:scale(.98)}
 .footer{text-align:center;color:#858585;font-size:10px;letter-spacing:.04em}
-.panel{display:none;position:absolute;inset:auto 0 0;background:#111;border:1px solid var(--line);border-radius:22px 22px 0 0;padding:22px;box-shadow:0 -20px 60px #000b}
-.panel.open{display:block}.panel h2{font-size:17px;margin:0 0 18px}.setting{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #292929;font-size:13px}.setting span:last-child{color:#aaa}
-.close{margin-top:18px;width:100%;height:46px;border:0;border-radius:13px;background:#eee;color:#111;font-weight:700}
+.panel{display:none;position:absolute;inset:auto 0 0;background:#fff;color:#080808;border:1px solid rgba(0,0,0,.12);border-radius:22px 22px 0 0;padding:22px;box-shadow:0 -20px 60px #0005}
+.panel.open{display:block}.panel h2{font-size:17px;margin:0 0 18px;color:#080808}.setting{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #e5e5e5;font-size:13px}.setting span:last-child{color:#555}
+.close{margin-top:18px;width:100%;height:46px;border:0;border-radius:13px;background:#080808;color:#fff;font-weight:700}
 @media(min-width:600px){.camera{max-width:520px;margin:auto}.time{font-size:68px}.bottom{padding-bottom:34px}}
-</style>
+ .evaluation{display:none;position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.58);align-items:flex-end}.evaluation.open{display:flex}.evaluation-card{width:100%;background:#fff;color:#080808;border-radius:22px 22px 0 0;padding:22px;box-shadow:0 -20px 60px #0008}.evaluation-card h2{font-size:17px;margin:0 0 12px}.stars{display:flex;gap:8px;margin:12px 0}.stars button{border:0;background:transparent;color:#080808;font-size:28px;padding:2px}.evaluation textarea{width:100%;min-height:82px;border:1px solid #bbb;border-radius:12px;padding:11px;color:#080808;background:#fff;font:inherit;resize:vertical}.evaluation-actions{display:flex;gap:10px;margin-top:14px}.evaluation-actions button{flex:1;height:44px;border:0;border-radius:12px;background:#080808;color:#fff;font-weight:700}.evaluation-actions .skip{background:#eee;color:#111}</style>
 </head>
 <body>
 <main class="camera">
@@ -57,15 +57,17 @@ body{background:radial-gradient(ellipse at 50% 44%,#252525 0,#111 42%,#050505 10
     <div class="footer">本地分析 · 不上传视频 · 无声音录制</div>
   </section>
   <section class="panel" id="panel"><h2>试飞设置</h2><div class="setting"><span>飞出画面自动停止</span><span>15 秒</span></div><div class="setting"><span>当前纸飞机</span><span>不指定机型</span></div><div class="setting"><span>视频保存位置</span><span>Movies / CPAC FLY</span></div><button class="close" id="close">完成</button></section>
+  <section class="evaluation" id="evaluation"><div class="evaluation-card"><h2>本次飞行评价</h2><div id="evaluation-time">飞行时长：00:00.00</div><div>这次飞得怎么样？</div><div class="stars" id="stars"><button data-score="1">★</button><button data-score="2">★</button><button data-score="3">★</button><button data-score="4">★</button><button data-score="5">★</button></div><div id="rating-label">5 / 5 分</div><textarea id="evaluation-note" maxlength="1000" placeholder="飞行感受、稳定性、问题（选填）"></textarea><div class="evaluation-actions"><button class="skip" id="skip-evaluation">暂不评价</button><button id="save-evaluation">保存评价</button></div></div></section>
 </main>
 <script>
 const panel=document.getElementById('panel');document.getElementById('settings').onclick=()=>panel.classList.add('open');document.getElementById('close').onclick=()=>panel.classList.remove('open');
 let active=false,started=0,raf=0;const timer=document.getElementById('timer');function tick(){if(!active)return;const t=performance.now()-started;const s=t/1000;timer.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+(s%60).toFixed(2).padStart(5,'0');raf=requestAnimationFrame(tick)}
-document.getElementById('start').onclick=()=>{active=!active;const b=document.getElementById('start');if(active){started=performance.now();b.textContent='停止并保存';document.getElementById('live').textContent='TIMING';tick()}else{cancelAnimationFrame(raf);b.textContent='开始试飞';document.getElementById('live').textContent='SAVED'}};
+document.getElementById('start').onclick=()=>{active=!active;const b=document.getElementById('start');if(active){started=performance.now();b.textContent='停止并保存';document.getElementById('live').textContent='TIMING';tick()}else{cancelAnimationFrame(raf);b.textContent='开始试飞';document.getElementById('live').textContent='SAVED';document.getElementById('evaluation-time').textContent='飞行时长：'+timer.textContent;document.getElementById('evaluation').classList.add('open')}};
 document.getElementById('record').onclick=e=>{e.currentTarget.textContent=e.currentTarget.textContent==='录像'?'停止录像':'录像'};
 document.getElementById('quality').onclick=e=>{const a=['HD 720p','FHD 1080p','UHD 4K','SD 480p'];e.currentTarget.textContent=a[(a.indexOf(e.currentTarget.textContent)+1)%a.length]};
 document.getElementById('fps').onclick=e=>{const a=['24 FPS','30 FPS','60 FPS'];e.currentTarget.textContent=a[(a.indexOf(e.currentTarget.textContent)+1)%a.length]};
-window.CPACFlyUI={setStatus:(count,fps)=>{document.getElementById('detection').textContent=count>0?'检测到 '+count+' 个动态目标（尚未确认是纸飞机）':'暂未检测到动态目标';document.getElementById('model').textContent='图像分析 '+Number(fps||0).toFixed(1)+' FPS · 通用目标检测'},setFlightTime:value=>timer.textContent=value};
+let selectedRating=5;document.querySelectorAll('#stars button').forEach(button=>button.onclick=()=>{selectedRating=Number(button.dataset.score);document.querySelectorAll('#stars button').forEach(star=>star.textContent=Number(star.dataset.score)<=selectedRating?'★':'☆');document.getElementById('rating-label').textContent=selectedRating+' / 5 分'});const closeEvaluation=()=>document.getElementById('evaluation').classList.remove('open');document.getElementById('skip-evaluation').onclick=closeEvaluation;document.getElementById('save-evaluation').onclick=()=>{window.CPACFlyUI.lastEvaluation={rating:selectedRating,note:document.getElementById('evaluation-note').value};closeEvaluation()};
+window.CPACFlyUI={lastEvaluation:null,setStatus:(count,fps)=>{document.getElementById('detection').textContent=count>0?'检测到 '+count+' 个动态目标（尚未确认是纸飞机）':'暂未检测到动态目标';document.getElementById('model').textContent='图像分析 '+Number(fps||0).toFixed(1)+' FPS · 通用目标检测'},setFlightTime:value=>timer.textContent=value};
 </script>
 </body>
 </html>
