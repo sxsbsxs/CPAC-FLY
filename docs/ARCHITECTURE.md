@@ -5,36 +5,53 @@
 - Kotlin：应用主语言
 - Jetpack Compose：界面
 - CameraX：预览、图像分析、录像
+- ARCore Depth API（可选能力）：支持设备上的逐帧深度图；运行时检查能力，不作为所有设备的硬依赖
 - Room：试飞、飞机档案和事件数据
 - MediaStore / app-specific storage：视频文件
 - LiteRT：模型选定并完成许可证审查后接入本地推理
+- OpenCV：按需用于相机标定、图像几何和视觉追踪；引入前审查版本与许可证
 
-CameraX 官方概览：https://developer.android.com/media/camera/camerax
-LiteRT 官方文档：https://developers.google.com/edge/litert
+CameraX：https://developer.android.com/media/camera/camerax
+ARCore Depth：https://developers.google.com/ar/develop/depth
+LiteRT：https://developers.google.com/edge/litert
 
 ## 分层
 
 - `ui/`：Compose 页面与 UI state
 - `camera/`：CameraX 生命周期、录像与帧采集
+- `calibration/`：相机内参、畸变、地面参考面和场地尺度标定
+- `depth/`：ARCore 能力探测、深度图采集、深度置信/有效性检查
 - `detection/`：模型接口、预处理、检测结果
 - `tracking/`：跨帧目标关联与置信度
+- `altitude/`：飞机检测区域深度采样、相机坐标到地面相对高度转换、质量评估
+- `flightmetrics/`：高度滤波、下降率、剩余飞行时间区间预测
 - `timing/`：时间基准、事件候选、人工修正
-- `analysis/`：二维轨迹与报告计算
+- `analysis/`：二维轨迹、高度/下降率曲线与报告
 - `data/`：Room entities、DAO、repositories
 - `storage/`：视频 URI、文件生命周期
 
 ## 数据流
 
-CameraX ImageAnalysis → frame timestamp + image → detector → tracker → flight event candidates → timing review UI → Room session + video URI.
+CameraX frame + capture timestamp → detector → tracker → optional ARCore depth sample → calibrated ground-relative altitude → robust temporal filter → descent-rate estimator → remaining-time predictor → live UI + Room samples.
 
-录像时间线和图像分析帧时间戳需要明确关联。不可用 Compose 重绘时间、按钮响应时间或播放器播放位置替代原始采集时间。
+录像时间线和图像分析帧时间戳需要明确关联。不可用 Compose 重绘时间、按钮响应时间或处理完成时间替代原始采集时间。ARCore 深度帧与相机帧必须按时间戳和视场参数对齐。
 
-## 线程与性能
+## 高度估计策略
 
-- 图像分析必须使用有界队列并及时关闭 ImageProxy。
-- 不在主线程执行模型推理、视频 IO 或数据库批量操作。
-- 记录丢帧数、帧时间戳间隔、相机配置和设备信息。
-- 对不同机型测量真实吞吐量，不能假设所有设备支持相同分辨率/FPS。
+1. 在试飞前引导用户固定手机、选择后置摄像头并标定场景；在画面中识别/指定地面参考面。
+2. 检查设备是否支持 ARCore Depth，并在运行时启用；不支持时使用可用的相机标定与已知尺度方案。
+3. 在飞机检测框/关键点周围取稳健深度样本，剔除背景混入、无效深度和低置信像素。
+4. 利用相机内参、设备姿态和地面平面，将相机坐标中的三维点转换为相对地面的垂直高度。
+5. 记录原始深度、转换结果、地面平面、质量分数和算法版本；不满足条件时输出 unavailable/relative-only。
+6. 不把相机距离（斜距）直接称为离地高度。
+
+## 实时性能
+
+- 目标 UI 更新至少 1 Hz；设备允许时分析目标 10–30 Hz，实际 FPS 自适应。
+- 使用有界队列和明确的丢帧策略，优先处理最新帧，防止积压导致数据显示滞后。
+- 分析必须异步执行并及时关闭 ImageProxy；不在主线程执行推理、深度处理、视频 IO 或数据库批量操作。
+- 记录采集时间戳、处理延迟、帧间隔、丢帧数、深度有效像素比例和设备信息。
+- 对不同机型测量吞吐量、温升和电量；性能不足时降低分析分辨率/频率，但不改变原始录像质量。
 
 ## 隐私
 
