@@ -5,11 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.cpacfly.camera.CameraScreen
+import com.cpacfly.records.FlightSession
+import com.cpacfly.records.FlightSessionStore
+import java.text.DateFormat
+import java.util.Date
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,11 +24,15 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var showCamera by remember { mutableStateOf(false) }
-                    if (showCamera) CameraScreen(onBack = { showCamera = false })
-                    else HomeScreen(
-                        onStartFlight = { showCamera = true },
-                        onOpenRecords = { }
-                    )
+                    var showRecords by remember { mutableStateOf(false) }
+                    when {
+                        showCamera -> CameraScreen(onBack = { showCamera = false })
+                        showRecords -> RecordsScreen(onBack = { showRecords = false })
+                        else -> HomeScreen(
+                            onStartFlight = { showCamera = true },
+                            onOpenRecords = { showRecords = true }
+                        )
+                    }
                 }
             }
         }
@@ -53,9 +63,9 @@ private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit) {
             }
         }
         item { Text("训练工具", style = MaterialTheme.typography.titleLarge) }
-        item { FeatureCard("飞行分析", "回看录像、慢动作与二维画面轨迹") }
+        item { FeatureCard("飞行分析", "录像保存、手动计时与后续轨迹分析") }
         item { FeatureCard("我的纸飞机", "记录机型、纸张、尺寸与折叠参数") }
-        item { FeatureCard("训练记录", "保存每次试飞成绩与视频") }
+        item { FeatureCard("训练记录", "本地保存试飞时长和关联视频") }
         item { OutlinedButton(onClick = onOpenRecords) { Text("查看训练记录") } }
         item {
             Text(
@@ -63,6 +73,38 @@ private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary
             )
+        }
+    }
+}
+
+@Composable
+private fun RecordsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { FlightSessionStore(context) }
+    var sessions by remember { mutableStateOf(store.all()) }
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("本地试飞记录", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onBack) { Text("返回") }
+        }
+        TextButton(onClick = { sessions = store.all() }) { Text("刷新记录") }
+        if (sessions.isEmpty()) {
+            Text("还没有试飞记录。完成一次手动计时后，记录会显示在这里。")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(sessions, key = { it.id }) { session -> SessionCard(session) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionCard(session: FlightSession) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
+            Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
+            Text(if (session.videoUri != null) "已关联录像" else "未关联录像", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
