@@ -28,21 +28,10 @@ import com.cpacfly.records.FlightSession
 import com.cpacfly.records.FlightSessionStore
 import com.cpacfly.records.PaperAircraft
 import com.cpacfly.records.PaperAircraftStore
+import com.cpacfly.video.VideoFrameTimeline
 import java.text.DateFormat
 import java.util.Date
 
-
-private fun nearestFrameIndex(timestampsMs: List<Long>, targetMs: Long): Int {
-    if (timestampsMs.isEmpty()) return -1
-    val found = timestampsMs.binarySearch(targetMs)
-    if (found >= 0) return found
-    val insertion = -found - 1
-    if (insertion <= 0) return 0
-    if (insertion >= timestampsMs.size) return timestampsMs.lastIndex
-    val before = timestampsMs[insertion - 1]
-    val after = timestampsMs[insertion]
-    return if (targetMs - before <= after - targetMs) insertion - 1 else insertion
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -250,7 +239,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
             } finally {
                 extractor.release()
             }
-            duration to timestamps.distinct().sorted()
+            duration to VideoFrameTimeline.normalize(timestamps)
         }
         videoDurationMs = index.first
         frameTimesMs = index.second
@@ -285,7 +274,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
-            val currentFrameIndex = nearestFrameIndex(frameTimesMs, positionMs)
+            val currentFrameIndex = VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs)
             Text(if (currentFrameIndex >= 0) "视频帧：${currentFrameIndex + 1} / ${frameTimesMs.size}" else "未能读取视频帧时间戳")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
