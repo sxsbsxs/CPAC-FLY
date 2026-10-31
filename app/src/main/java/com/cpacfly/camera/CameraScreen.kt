@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.cpacfly.detection.MediaPipeObjectDetector
+import com.cpacfly.detection.MlKitStreamObjectDetector
 import com.cpacfly.tracking.DetectionTracker
 import com.cpacfly.vision.GlobalMotionEstimator
 import com.cpacfly.tracking.DetectionBox
@@ -127,7 +127,7 @@ fun CameraScreen(onBack: () -> Unit) {
             }
         } else {
             val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-            val detectorRef = remember { AtomicReference<MediaPipeObjectDetector?>(null) }
+            val detectorRef = remember { AtomicReference<MlKitStreamObjectDetector?>(null) }
             val tracker = remember { DetectionTracker() }
             val previewView = remember {
                 PreviewView(context).apply {
@@ -317,7 +317,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }
                                 val motion = motionEstimator.estimate(gray, 128, 96)
                                 val detector = detectorRef.updateAndGet { existing ->
-                                    existing ?: MediaPipeObjectDetector(context.applicationContext)
+                                    existing ?: MlKitStreamObjectDetector(context.applicationContext)
                                 }
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
                                 val detections = detector.detect(frameBitmap, timestampMs)
@@ -335,7 +335,11 @@ fun CameraScreen(onBack: () -> Unit) {
 
                                 // ML Kit tracks generic moving objects, not paper-airplane semantics.
                                 // Treat visible tracked objects as the current timing target.
-                                val targetVisible = tracked.isNotEmpty()
+                                val primaryTarget = tracked.maxByOrNull { trackedItem ->
+                                    val box = trackedItem.detection.box
+                                    (box.right - box.left).coerceAtLeast(0f) * (box.bottom - box.top).coerceAtLeast(0f)
+                                }
+                                val targetVisible = primaryTarget != null
                                 if (targetVisible) targetWasSeenRef.set(true)
                                 if (flightActiveRef.get() && targetWasSeenRef.get()) {
                                     val shouldStop = outOfViewController.onFrame(!targetVisible, timestampMs)
