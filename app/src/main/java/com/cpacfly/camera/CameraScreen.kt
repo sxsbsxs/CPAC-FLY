@@ -74,6 +74,9 @@ fun CameraScreen() {
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var recording by remember { mutableStateOf<Recording?>(null) }
     var pendingSessionId by remember { mutableStateOf<String?>(null) }
+    var showFlightEvaluation by remember { mutableStateOf(false) }
+    var flightRating by remember { mutableIntStateOf(5) }
+    var flightEvaluation by remember { mutableStateOf("") }
     var finalizedVideoUri by remember { mutableStateOf<String?>(null) }
     var autoStopSeconds by remember { mutableFloatStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getInt("out_of_view_seconds", 15).toFloat()) }
     var outOfViewCountdownMs by remember { mutableLongStateOf(0L) }
@@ -253,6 +256,9 @@ fun CameraScreen() {
                                         val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                                         pendingSessionId = savedId
                                         pendingSessionIdRef.set(savedId)
+                                        flightRating = 5
+                                        flightEvaluation = ""
+                                        showFlightEvaluation = true
                                         finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
                                         recordingRef.getAndSet(null)?.stop()
                                         recording = null
@@ -280,17 +286,17 @@ fun CameraScreen() {
             if (settingsExpanded) {
                 AlertDialog(
                     onDismissRequest = { settingsExpanded = false },
-                    containerColor = androidx.compose.ui.graphics.Color.Black,
-                    titleContentColor = androidx.compose.ui.graphics.Color.White,
-                    textContentColor = androidx.compose.ui.graphics.Color.White,
+                    containerColor = androidx.compose.ui.graphics.Color.White,
+                    titleContentColor = androidx.compose.ui.graphics.Color.Black,
+                    textContentColor = androidx.compose.ui.graphics.Color.Black,
                     title = { Text("试飞设置") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("飞出画面自动停止：${autoStopSeconds.toInt()} 秒")
                             Slider(value = autoStopSeconds, colors = SliderDefaults.colors(
-                                thumbColor = androidx.compose.ui.graphics.Color.White,
-                                activeTrackColor = androidx.compose.ui.graphics.Color.White,
-                                inactiveTrackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f)
+                                thumbColor = androidx.compose.ui.graphics.Color.Black,
+                                activeTrackColor = androidx.compose.ui.graphics.Color.Black,
+                                inactiveTrackColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f)
                             ), onValueChange = {
                                 autoStopSeconds = it
                                 autoStopSecondsRef.set(it.toInt())
@@ -299,15 +305,15 @@ fun CameraScreen() {
                             }, valueRange = 5f..120f, steps = 22, enabled = !flightActive)
                             Text("本次纸飞机")
                             Box {
-                                OutlinedButton(onClick = { aircraftProfiles = aircraftStore.all(); aircraftMenuExpanded = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedAircraft?.name ?: "不指定机型") }
-                                DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }, containerColor = androidx.compose.ui.graphics.Color.Black) {
-                                    DropdownMenuItem(text = { Text("不指定机型", color = androidx.compose.ui.graphics.Color.White) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.White), onClick = {
+                                OutlinedButton(onClick = { aircraftProfiles = aircraftStore.all(); aircraftMenuExpanded = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.Black)) { Text(selectedAircraft?.name ?: "不指定机型") }
+                                DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }, containerColor = androidx.compose.ui.graphics.Color.White) {
+                                    DropdownMenuItem(text = { Text("不指定机型", color = androidx.compose.ui.graphics.Color.Black) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.Black), onClick = {
                                         selectedAircraftId = null
                                         context.getSharedPreferences("cpac_fly_settings", 0).edit().remove("selected_aircraft_id").apply()
                                         aircraftMenuExpanded = false
                                     })
                                     aircraftProfiles.forEach { profile ->
-                                        DropdownMenuItem(text = { Text(profile.name, color = androidx.compose.ui.graphics.Color.White) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.White), onClick = {
+                                        DropdownMenuItem(text = { Text(profile.name, color = androidx.compose.ui.graphics.Color.Black) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.White), onClick = {
                                             selectedAircraftId = profile.id
                                             context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("selected_aircraft_id", profile.id).apply()
                                             aircraftMenuExpanded = false
@@ -318,7 +324,66 @@ fun CameraScreen() {
                             Text("录像保存在系统相册 Movies/CPAC FLY，不录制声音。", style = MaterialTheme.typography.bodySmall)
                         }
                     },
-                    confirmButton = { TextButton(onClick = { settingsExpanded = false }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("完成") } }
+                    confirmButton = { TextButton(onClick = { settingsExpanded = false }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.Black)) { Text("完成") } }
+                )
+            }
+
+            if (showFlightEvaluation && pendingSessionId != null) {
+                AlertDialog(
+                    onDismissRequest = { showFlightEvaluation = false },
+                    containerColor = androidx.compose.ui.graphics.Color.White,
+                    titleContentColor = androidx.compose.ui.graphics.Color.Black,
+                    textContentColor = androidx.compose.ui.graphics.Color.Black,
+                    title = { Text("本次飞行评价") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("飞行时长：%02d:%05.2f".format(elapsedFlightMs / 60_000L, (elapsedFlightMs % 60_000L) / 1000.0))
+                            Text("这次飞得怎么样？")
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                (1..5).forEach { score ->
+                                    TextButton(
+                                        onClick = { flightRating = score },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.Black)
+                                    ) {
+                                        Text(if (score <= flightRating) "★" else "☆", style = MaterialTheme.typography.headlineSmall)
+                                    }
+                                }
+                            }
+                            Text("$flightRating / 5 分")
+                            OutlinedTextField(
+                                value = flightEvaluation,
+                                onValueChange = { if (it.length <= 1000) flightEvaluation = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("飞行感受、稳定性、问题（选填）") },
+                                minLines = 3,
+                                maxLines = 5,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = androidx.compose.ui.graphics.Color.Black,
+                                    unfocusedTextColor = androidx.compose.ui.graphics.Color.Black,
+                                    focusedBorderColor = androidx.compose.ui.graphics.Color.Black,
+                                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.DarkGray,
+                                    focusedLabelColor = androidx.compose.ui.graphics.Color.Black,
+                                    unfocusedLabelColor = androidx.compose.ui.graphics.Color.DarkGray,
+                                    cursorColor = androidx.compose.ui.graphics.Color.Black
+                                )
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                pendingSessionId?.let { sessionStore.updateEvaluation(it, flightRating, flightEvaluation.trim()) }
+                                showFlightEvaluation = false
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.Black)
+                        ) { Text("保存评价") }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showFlightEvaluation = false },
+                            colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.DarkGray)
+                        ) { Text("暂不评价") }
+                    }
                 )
             }
 
@@ -412,6 +477,9 @@ fun CameraScreen() {
                                                 val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                                                 pendingSessionId = savedId
                                                 pendingSessionIdRef.set(savedId)
+                                                flightRating = 5
+                                                flightEvaluation = ""
+                                                showFlightEvaluation = true
                                                 finalizedVideoUriRef.get()?.let { uri -> sessionStore.attachVideo(savedId, uri) }
                                                 recordingRef.getAndSet(null)?.stop()
                                                 recording = null
