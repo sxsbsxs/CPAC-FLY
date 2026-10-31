@@ -24,6 +24,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
 import com.cpacfly.tracking.DetectionTracker
+import com.cpacfly.tracking.DetectionBox
+import com.cpacfly.tracking.DetectionCandidate
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -160,7 +162,17 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }!!
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
                                 val detections = detector.detect(frameBitmap, timestampMs)
-                                val tracked = tracker.update(detections)
+                                val tracked = tracker.update(detections.map { detection ->
+                                    DetectionCandidate(
+                                        box = DetectionBox(
+                                            detection.box.left, detection.box.top,
+                                            detection.box.right, detection.box.bottom
+                                        ),
+                                        label = detection.label,
+                                        score = detection.score,
+                                        categoryIndex = detection.categoryIndex
+                                    )
+                                })
 
                                 latestDetections = if (tracked.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
