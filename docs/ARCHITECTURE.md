@@ -65,3 +65,10 @@ CameraX frame + capture timestamp → detector → tracker/manual ROI fallback �
 ## 隐私
 
 首版优先本地存储。录像可能包含旁观者、场地和位置信息；提供清晰的保存/删除行为，不默认上传。
+
+
+## 视频复核与手持相机运动估计
+
+- 试飞记录保存人工复核的出手/落地视频时间戳；人工修正时长按两个时间戳之差重新计算。
+- 录像复核界面使用 Android `MediaMetadataRetriever` 按时间位置解码预览帧，提供时间线拖动和约 33 ms 步进。此步进是约 30 fps 的近似，不等于对可变帧率视频逐帧精确寻址；最终需要基于 `MediaExtractor` sample PTS / 解码输出时间戳改进。
+- `GlobalMotionEstimator` 是纯 Kotlin 灰度帧块匹配平移估计基线，输出归一化平移、置信度和可靠性标志。它只能近似处理平移型镜头运动，不处理旋转、缩放和显著视差，且目前尚未接入 CameraX/录像时间线；不可把输出当作已完成的手持跟拍补偿。
