@@ -121,12 +121,13 @@ fun CameraScreen(onBack: () -> Unit) {
                         analysis.setAnalyzer(cameraExecutor) { image ->
                             var bitmap: Bitmap? = null
                             try {
-                                bitmap = image.toUprightBitmap()
+                                val frameBitmap = image.toUprightBitmap()
+                                bitmap = frameBitmap
                                 val detector = detectorRef.updateAndGet { existing ->
                                     existing ?: MediaPipeObjectDetector(context.applicationContext)
                                 }!!
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
-                                val detections = detector.detect(bitmap, timestampMs)
+                                val detections = detector.detect(frameBitmap, timestampMs)
 
                                 latestDetections = if (detections.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
