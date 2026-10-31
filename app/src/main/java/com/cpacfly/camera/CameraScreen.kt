@@ -42,6 +42,8 @@ import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
 fun CameraScreen(onBack: () -> Unit) {
@@ -70,6 +72,11 @@ fun CameraScreen(onBack: () -> Unit) {
     var outOfViewCountdownMs by remember { mutableLongStateOf(0L) }
     val outOfViewController = remember { OutOfViewStopController(15_000L) }
     val flightActiveRef = remember { AtomicBoolean(false) }
+    val flightStartMsRef = remember { AtomicLong(0L) }
+    val autoStopSecondsRef = remember { AtomicInteger(autoStopSeconds.toInt()) }
+    val recordingRef = remember { AtomicReference<Recording?>(null) }
+    val finalizedVideoUriRef = remember { AtomicReference<String?>(null) }
+    val pendingSessionIdRef = remember { AtomicReference<String?>(null) }
     val targetWasSeenRef = remember { AtomicBoolean(false) }
     val sessionStore = remember { FlightSessionStore(context) }
 
@@ -135,6 +142,7 @@ fun CameraScreen(onBack: () -> Unit) {
                         value = autoStopSeconds,
                         onValueChange = {
                             autoStopSeconds = it
+                            autoStopSecondsRef.set(it.toInt())
                             context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("out_of_view_seconds", it.toInt()).apply()
                             outOfViewController.setTimeoutMs(it.toLong() * 1_000L)
                         },
@@ -150,19 +158,23 @@ fun CameraScreen(onBack: () -> Unit) {
                     }
                     if (flightActive) {
                         Button(onClick = {
-                            elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
+                            elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
                             flightActive = false
                             flightActiveRef.set(false)
                             outOfViewController.reset()
                             targetWasSeenRef.set(false)
                             outOfViewCountdownMs = 0L
-                            pendingSessionId = sessionStore.add(elapsedFlightMs)
-                            finalizedVideoUri?.let { sessionStore.attachVideo(pendingSessionId!!, it) }
-                            recording?.stop()
+                            val savedId = sessionStore.add(elapsedFlightMs)
+                            pendingSessionId = savedId
+                            pendingSessionIdRef.set(savedId)
+                            finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
+                            recordingRef.getAndSet(null)?.stop()
+                            recording = null
                         }) { Text("标记落地 · 保存本次试飞") }
                     } else {
                         Button(onClick = {
                             flightStartMs = SystemClock.elapsedRealtime()
+                            flightStartMsRef.set(flightStartMs)
                             elapsedFlightMs = 0L
                             outOfViewController.setTimeoutMs(autoStopSeconds.toLong() * 1_000L)
                             outOfViewController.reset()
@@ -175,6 +187,7 @@ fun CameraScreen(onBack: () -> Unit) {
                         Button(enabled = recordingAvailable && !isRecording, onClick = {
                             val capture = videoCapture ?: return@Button
                             finalizedVideoUri = null
+                            finalizedVideoUriRef.set(null)
                             val values = ContentValues().apply {
                                 put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
                                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -189,14 +202,17 @@ fun CameraScreen(onBack: () -> Unit) {
                                         isRecording = false
                                         if (!event.hasError()) {
                                             finalizedVideoUri = event.outputResults.outputUri.toString()
-                                            pendingSessionId?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
+                                            finalizedVideoUriRef.set(finalizedVideoUri)
+                                            pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
                                             status = "录像已保存到 Movies/CPAC FLY"
                                         } else {
                                             status = "录像保存失败：${event.error}"
                                         }
                                         recording = null
+                                        recordingRef.set(null)
                                     }
                                 }
+                            recordingRef.set(recording)
                             isRecording = true
                             status = "正在录制视频（无声音）"
                         }) { Text("开始录像") }
@@ -288,12 +304,13 @@ fun CameraScreen(onBack: () -> Unit) {
                                                 flightActiveRef.set(false)
                                                 targetWasSeenRef.set(false)
                                                 outOfViewCountdownMs = 0L
-                                                pendingSessionId = sessionStore.add(elapsedFlightMs)
-                                                finalizedVideoUri?.let { uri ->
-                                                    pendingSessionId?.let { id -> sessionStore.attachVideo(id, uri) }
-                                                }
-                                                recording?.stop()
-                                                status = "纸飞机连续离开画面达到 ${autoStopSeconds.toInt()} 秒，已自动停止并保存试飞"
+                                                val savedId = sessionStore.add(elapsedFlightMs)
+                                                pendingSessionId = savedId
+                                                pendingSessionIdRef.set(savedId)
+                                                finalizedVideoUriRef.get()?.let { uri -> sessionStore.attachVideo(savedId, uri) }
+                                                recordingRef.getAndSet(null)?.stop()
+                                                recording = null
+                                                status = "纸飞机连续离开画面达到 ${autoStopSecondsRef.get()} 秒，已自动停止并保存试飞"
                                             }
                                         }
                                     }
@@ -301,7 +318,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                     outOfViewController.reset()
                                 }
 
-                                latestDetections = if (tracked.isEmpty()) {
+                                val detectionSummary = if (tracked.isEmpty()) {
                                     "当前帧没有检测到 COCO 目标"
                                 } else {
                                     tracked.sortedByDescending { it.detection.score }
@@ -310,16 +327,23 @@ fun CameraScreen(onBack: () -> Unit) {
                                             "目标 #${it.trackId} · ${it.detection.label} · ${(it.detection.score * 100).toInt()}%"
                                         }
                                 }
-                                status = "摄像头运行中 · 本地 AI 推理"
                                 frameCount++
                                 val now = SystemClock.elapsedRealtime()
+                                var measuredFps: Float? = null
                                 if (now - fpsWindowStart >= 1000L) {
-                                    fps = frameCount * 1000f / (now - fpsWindowStart)
+                                    measuredFps = frameCount * 1000f / (now - fpsWindowStart)
                                     frameCount = 0
                                     fpsWindowStart = now
                                 }
+                                mainExecutor.execute {
+                                    latestDetections = detectionSummary
+                                    status = "摄像头运行中 · 本地 AI 推理"
+                                    measuredFps?.let { fps = it }
+                                }
                             } catch (error: Throwable) {
-                                status = "检测暂不可用：${error.message ?: error.javaClass.simpleName}"
+                                mainExecutor.execute {
+                                    status = "检测暂不可用：${error.message ?: error.javaClass.simpleName}"
+                                }
                             } finally {
                                 bitmap?.recycle()
                                 image.close()
