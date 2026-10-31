@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.cpacfly.camera.CameraScreen
 import com.cpacfly.records.FlightSession
@@ -100,11 +101,15 @@ private fun RecordsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun SessionCard(session: FlightSession) {
+    val uriHandler = LocalUriHandler.current
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
             Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
             Text(if (session.videoUri != null) "已关联录像" else "未关联录像", style = MaterialTheme.typography.bodySmall)
+            session.videoUri?.let { uri ->
+                TextButton(onClick = { uriHandler.openUri(uri) }) { Text("播放录像") }
+            }
         }
     }
 }
