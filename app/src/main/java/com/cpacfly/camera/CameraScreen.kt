@@ -38,6 +38,7 @@ import com.cpacfly.vision.GlobalMotionEstimator
 import com.cpacfly.tracking.DetectionBox
 import com.cpacfly.tracking.DetectionCandidate
 import com.cpacfly.records.FlightSessionStore
+import com.cpacfly.records.PaperAircraftStore
 import com.cpacfly.timing.OutOfViewStopController
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
@@ -81,6 +82,11 @@ fun CameraScreen(onBack: () -> Unit) {
     val pendingSessionIdRef = remember { AtomicReference<String?>(null) }
     val targetWasSeenRef = remember { AtomicBoolean(false) }
     val sessionStore = remember { FlightSessionStore(context) }
+    val aircraftStore = remember { PaperAircraftStore(context) }
+    var aircraftProfiles by remember { mutableStateOf(aircraftStore.all()) }
+    var selectedAircraftId by remember { mutableStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getString("selected_aircraft_id", null)) }
+    var aircraftMenuExpanded by remember { mutableStateOf(false) }
+    val selectedAircraft = aircraftProfiles.firstOrNull { it.id == selectedAircraftId }
     val motionEstimator = remember { GlobalMotionEstimator(searchRadiusPx = 8, sampleStepPx = 6) }
 
     LaunchedEffect(flightActive, flightStartMs) {
@@ -137,6 +143,34 @@ fun CameraScreen(onBack: () -> Unit) {
             Text(status, style = MaterialTheme.typography.bodyMedium)
             Text("分析帧率：${"%.1f".format(fps)} FPS", style = MaterialTheme.typography.bodySmall)
             Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("本次试飞纸飞机", style = MaterialTheme.typography.titleSmall)
+                    Box {
+                        OutlinedButton(onClick = {
+                            aircraftProfiles = aircraftStore.all()
+                            aircraftMenuExpanded = true
+                        }, enabled = !flightActive) {
+                            Text(selectedAircraft?.name ?: "不指定机型")
+                        }
+                        DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("不指定机型") }, onClick = {
+                                selectedAircraftId = null
+                                context.getSharedPreferences("cpac_fly_settings", 0).edit().remove("selected_aircraft_id").apply()
+                                aircraftMenuExpanded = false
+                            })
+                            aircraftProfiles.forEach { profile ->
+                                DropdownMenuItem(text = { Text(profile.name) }, onClick = {
+                                    selectedAircraftId = profile.id
+                                    context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("selected_aircraft_id", profile.id).apply()
+                                    aircraftMenuExpanded = false
+                                })
+                            }
+                        }
+                    }
+                    Text("选择的机型会关联到本次训练记录。", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("飞行计时", style = MaterialTheme.typography.titleMedium)
                     Text("计时：%.2f 秒".format(elapsedFlightMs / 1000.0), style = MaterialTheme.typography.headlineSmall)
@@ -167,7 +201,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             outOfViewController.reset()
                             targetWasSeenRef.set(false)
                             outOfViewCountdownMs = 0L
-                            val savedId = sessionStore.add(elapsedFlightMs)
+                            val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                             pendingSessionId = savedId
                             pendingSessionIdRef.set(savedId)
                             finalizedVideoUriRef.get()?.let { sessionStore.attachVideo(savedId, it) }
