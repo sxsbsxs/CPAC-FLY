@@ -2,6 +2,8 @@ package com.cpacfly
 
 import android.os.Bundle
 import android.media.MediaMetadataRetriever
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,6 +30,7 @@ import com.cpacfly.records.PaperAircraft
 import com.cpacfly.records.PaperAircraftStore
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.abs
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -198,6 +201,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
     val store = remember { FlightSessionStore(context) }
     val session = remember(sessionId) { store.all().firstOrNull { it.id == sessionId } }
     var videoDurationMs by remember(sessionId) { mutableLongStateOf(0L) }
+    var frameTimesMs by remember(sessionId) { mutableStateOf<List<Long>>(emptyList()) }
     var positionMs by remember(sessionId) { mutableLongStateOf(0L) }
     var releaseMs by remember(sessionId) { mutableStateOf(session?.releaseTimeMs) }
     var landingMs by remember(sessionId) { mutableStateOf(session?.landingTimeMs) }
@@ -205,16 +209,40 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
 
     LaunchedEffect(session?.videoUri) {
         val uri = session?.videoUri ?: return@LaunchedEffect
-        videoDurationMs = withContext(Dispatchers.IO) {
-            val retriever = MediaMetadataRetriever()
-            try {
-                retriever.setDataSource(context, Uri.parse(uri))
-                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            } finally {
-                retriever.release()
+        val index = withContext(Dispatchers.IO) {
+            val duration = MediaMetadataRetriever().let { retriever ->
+                try {
+                    retriever.setDataSource(context, Uri.parse(uri))
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                } finally {
+                    retriever.release()
+                }
             }
+            val timestamps = mutableListOf<Long>()
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(context, Uri.parse(uri), null)
+                val videoTrack = (0 until extractor.trackCount).firstOrNull { track ->
+                    extractor.getTrackFormat(track).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
+                }
+                if (videoTrack != null) {
+                    extractor.selectTrack(videoTrack)
+                    var previousPts = -1L
+                    while (extractor.sampleTime >= 0L) {
+                        val ptsMs = extractor.sampleTime / 1000L
+                        if (ptsMs != previousPts) timestamps += ptsMs
+                        previousPts = ptsMs
+                        if (!extractor.advance()) break
+                    }
+                }
+            } finally {
+                extractor.release()
+            }
+            duration to timestamps
         }
-        positionMs = 0L
+        videoDurationMs = index.first
+        frameTimesMs = index.second
+        positionMs = frameTimesMs.firstOrNull() ?: 0L
     }
 
     val frame = produceState<android.graphics.Bitmap?>(null, session?.videoUri, positionMs) {
@@ -240,18 +268,29 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
         if (session == null || session.videoUri == null) {
             Text("该记录没有可用录像。")
         } else {
-            Text("拖动时间线定位画面。标记出手帧和落地帧后，按两个视频时间戳之差计算飞行时长。")
+            Text("拖动时间线定位画面，或按视频实际 sample PTS 逐帧前后移动。标记出手帧和落地帧后，按两个视频时间戳之差计算飞行时长。")
             frame.value?.let { bitmap ->
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
+            val currentFrameIndex = frameTimesMs.indices.minByOrNull { abs(frameTimesMs[it] - positionMs) } ?: -1
+            Text(if (currentFrameIndex >= 0) "视频帧：${currentFrameIndex + 1} / ${frameTimesMs.size}" else "未能读取视频帧时间戳")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(enabled = positionMs > 0L, onClick = { positionMs = (positionMs - 33L).coerceAtLeast(0L) }) { Text("前一帧（约）") }
-                OutlinedButton(enabled = positionMs < videoDurationMs, onClick = { positionMs = (positionMs + 33L).coerceAtMost(videoDurationMs) }) { Text("后一帧（约）") }
+                OutlinedButton(
+                    enabled = currentFrameIndex > 0,
+                    onClick = { positionMs = frameTimesMs[currentFrameIndex - 1] }
+                ) { Text("前一帧") }
+                OutlinedButton(
+                    enabled = currentFrameIndex >= 0 && currentFrameIndex < frameTimesMs.lastIndex,
+                    onClick = { positionMs = frameTimesMs[currentFrameIndex + 1] }
+                ) { Text("后一帧") }
             }
             Slider(
                 value = positionMs.toFloat().coerceIn(0f, videoDurationMs.coerceAtLeast(1L).toFloat()),
                 onValueChange = { positionMs = it.toLong() },
+                onValueChangeFinished = {
+                    frameTimesMs.minByOrNull { timestamp -> abs(timestamp - positionMs) }?.let { positionMs = it }
+                },
                 valueRange = 0f..videoDurationMs.coerceAtLeast(1L).toFloat(),
                 enabled = videoDurationMs > 0L
             )
@@ -276,7 +315,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text("保存复核结果") }
             Text(
-                "注意：帧定位受视频编码和设备解码能力影响；保存的是所选视频时间位置，并非自动识别出的真实离手或触地时刻。",
+                "注意：帧时间线来自 MediaExtractor 的视频 sample PTS；预览帧由解码器按最近时间戳提取。不同容器/编码可能存在 sample 与显示帧差异；保存的是人工选定的时间戳，并非自动识别出的真实离手或触地时刻。",
                 style = MaterialTheme.typography.bodySmall
             )
         }
