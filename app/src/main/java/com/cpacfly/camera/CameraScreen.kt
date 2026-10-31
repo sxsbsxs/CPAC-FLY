@@ -81,6 +81,7 @@ fun CameraScreen(onBack: () -> Unit) {
     val finalizedVideoUriRef = remember { AtomicReference<String?>(null) }
     val pendingSessionIdRef = remember { AtomicReference<String?>(null) }
     val targetWasSeenRef = remember { AtomicBoolean(false) }
+    val primaryTrackIdRef = remember { AtomicLong(-1L) }
     val sessionStore = remember { FlightSessionStore(context) }
     val aircraftStore = remember { PaperAircraftStore(context) }
     var aircraftProfiles by remember { mutableStateOf(aircraftStore.all()) }
@@ -200,6 +201,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             flightActiveRef.set(false)
                             outOfViewController.reset()
                             targetWasSeenRef.set(false)
+                            primaryTrackIdRef.set(-1L)
                             outOfViewCountdownMs = 0L
                             val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                             pendingSessionId = savedId
@@ -216,6 +218,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             outOfViewController.setTimeoutMs(autoStopSeconds.toLong() * 1_000L)
                             outOfViewController.reset()
                             targetWasSeenRef.set(false)
+                            primaryTrackIdRef.set(-1L)
                             flightActiveRef.set(true)
                             flightActive = true
                         }) { Text("标记出手 · 开始计时") }
@@ -336,10 +339,15 @@ fun CameraScreen(onBack: () -> Unit) {
 
                                 // ML Kit tracks generic moving objects, not paper-airplane semantics.
                                 // Treat visible tracked objects as the current timing target.
-                                val primaryTarget = tracked.maxByOrNull { trackedItem ->
-                                    val box = trackedItem.detection.box
-                                    (box.right - box.left).coerceAtLeast(0f) * (box.bottom - box.top).coerceAtLeast(0f)
-                                }
+                                val selectedTrackId = primaryTrackIdRef.get()
+                                val primaryTarget = if (selectedTrackId >= 0L) {
+                                    tracked.firstOrNull { it.trackId == selectedTrackId }
+                                } else if (flightActiveRef.get()) {
+                                    tracked.maxByOrNull { trackedItem ->
+                                        val box = trackedItem.detection.box
+                                        (box.right - box.left).coerceAtLeast(0f) * (box.bottom - box.top).coerceAtLeast(0f)
+                                    }?.also { primaryTrackIdRef.compareAndSet(-1L, it.trackId) }
+                                } else null
                                 val targetVisible = primaryTarget != null
                                 if (targetVisible) targetWasSeenRef.set(true)
                                 if (flightActiveRef.get() && targetWasSeenRef.get()) {
@@ -354,6 +362,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                                 elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
                                                 flightActive = false
                                                 targetWasSeenRef.set(false)
+                                                primaryTrackIdRef.set(-1L)
                                                 outOfViewCountdownMs = 0L
                                                 val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                                                 pendingSessionId = savedId
