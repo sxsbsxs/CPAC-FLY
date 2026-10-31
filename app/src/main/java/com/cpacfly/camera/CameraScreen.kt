@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.content.ContentValues
+import android.provider.MediaStore
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,6 +13,14 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
+import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
@@ -26,6 +36,7 @@ import com.cpacfly.detection.MediaPipeObjectDetector
 import com.cpacfly.tracking.DetectionTracker
 import com.cpacfly.tracking.DetectionBox
 import com.cpacfly.tracking.DetectionCandidate
+import com.cpacfly.records.FlightSessionStore
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
@@ -47,6 +58,12 @@ fun CameraScreen(onBack: () -> Unit) {
     var flightActive by remember { mutableStateOf(false) }
     var flightStartMs by remember { mutableStateOf(0L) }
     var elapsedFlightMs by remember { mutableStateOf(0L) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingAvailable by remember { mutableStateOf(false) }
+    var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
+    var recording by remember { mutableStateOf<Recording?>(null) }
+    var pendingSessionId by remember { mutableStateOf<String?>(null) }
+    val sessionStore = remember { FlightSessionStore(context) }
 
     LaunchedEffect(flightActive, flightStartMs) {
         while (flightActive) {
@@ -109,7 +126,9 @@ fun CameraScreen(onBack: () -> Unit) {
                         Button(onClick = {
                             elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMs
                             flightActive = false
-                        }) { Text("标记落地 · 停止计时") }
+                            pendingSessionId = sessionStore.add(elapsedFlightMs)
+                            recording?.stop()
+                        }) { Text("标记落地 · 保存本次试飞") }
                     } else {
                         Button(onClick = {
                             flightStartMs = SystemClock.elapsedRealtime()
@@ -117,7 +136,41 @@ fun CameraScreen(onBack: () -> Unit) {
                             flightActive = true
                         }) { Text("标记出手 · 开始计时") }
                     }
-                    Text("这是手动计时基线；自动识别出手和落地事件尚未接入。", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = recordingAvailable && !isRecording, onClick = {
+                            val capture = videoCapture ?: return@Button
+                            val values = ContentValues().apply {
+                                put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
+                                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
+                            }
+                            val output = MediaStoreOutputOptions.Builder(
+                                context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                            ).setContentValues(values).build()
+                            recording = capture.output.prepareRecording(context, output)
+                                .start(ContextCompat.getMainExecutor(context)) { event ->
+                                    if (event is VideoRecordEvent.Finalize) {
+                                        isRecording = false
+                                        if (!event.hasError()) {
+                                            pendingSessionId?.let { sessionStore.attachVideo(it, event.outputResults.outputUri.toString()) }
+                                            status = "录像已保存到 Movies/CPAC FLY"
+                                        } else {
+                                            status = "录像保存失败：${event.error}"
+                                        }
+                                        recording = null
+                                    }
+                                }
+                            isRecording = true
+                            status = "正在录制视频（无声音）"
+                        }) { Text("开始录像") }
+                        OutlinedButton(enabled = isRecording, onClick = { recording?.stop() }) { Text("停止录像") }
+                    }
+                    Text(
+                        if (recordingAvailable) "录像保存到系统媒体库 Movies/CPAC FLY；默认不录音。"
+                        else "设备不支持预览、分析和录像同时运行。",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text("停止计时会保存本地记录；自动识别出手和落地尚未接入。", style = MaterialTheme.typography.bodySmall)
                 }
             }
             Card(Modifier.fillMaxWidth()) {
@@ -144,6 +197,12 @@ fun CameraScreen(onBack: () -> Unit) {
                         val preview = Preview.Builder().build().also {
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
+                        val recorder = Recorder.Builder()
+                            .setQualitySelector(QualitySelector.from(
+                                Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
+                            ))
+                            .build()
+                        val capture = VideoCapture.withOutput(recorder)
                         val analysis = ImageAnalysis.Builder()
                             .setTargetResolution(android.util.Size(640, 480))
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -200,19 +259,30 @@ fun CameraScreen(onBack: () -> Unit) {
                         }
 
                         provider.unbindAll()
-                        provider.bindToLifecycle(
-                            lifecycleOwner,
-                            CameraSelector.DEFAULT_BACK_CAMERA,
-                            preview,
-                            analysis
-                        )
-                        status = "后置摄像头已启动，正在加载检测模型"
+                        try {
+                            provider.bindToLifecycle(
+                                lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA,
+                                preview, analysis, capture
+                            )
+                            videoCapture = capture
+                            recordingAvailable = true
+                            status = "后置摄像头已启动，录像功能可用"
+                        } catch (videoError: Throwable) {
+                            provider.unbindAll()
+                            provider.bindToLifecycle(
+                                lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis
+                            )
+                            videoCapture = null
+                            recordingAvailable = false
+                            status = "预览与分析已启动；录像组合不受支持，已降级"
+                        }
                     } catch (error: Throwable) {
                         status = "摄像头启动失败：${error.message ?: error.javaClass.simpleName}"
                     }
                 }, mainExecutor)
 
                 onDispose {
+                    recording?.stop()
                     boundProvider?.unbindAll()
                     cameraExecutor.execute { detectorRef.getAndSet(null)?.close() }
                     cameraExecutor.shutdown()
