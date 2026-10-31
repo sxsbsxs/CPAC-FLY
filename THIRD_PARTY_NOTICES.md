@@ -1,23 +1,22 @@
 # Third-party notices and license register
 
-No third-party source code, trained model, or dataset is bundled in the initial scaffold.
+Before release, verify the exact license for each dependency, model weight, dataset, and asset independently.
 
-Before a dependency or asset is merged, add a row containing:
+| Component / asset | Exact version | Source URL | License evidence | Review status |
+|---|---|---|---|---|
+| AndroidX / Jetpack Compose | Pinned in app Gradle | https://developer.android.com/jetpack | Review exact artifact metadata | Pending |
+| CameraX | Not yet integrated | https://developer.android.com/media/camera/camerax | Review exact artifact metadata when added | Pending |
+| Room | Not yet integrated | https://developer.android.com/training/data-storage/room | Review exact artifact metadata when added | Pending |
+| MediaPipe Tasks Vision | 1.1.0 | https://developers.google.com/edge/mediapipe/solutions/vision/object_detector | Apache-2.0 in published Maven metadata | Integrated; preserve notices |
+| EfficientDet-Lite0 model | Official MediaPipe float32 v1; SHA-256 pinned in Gradle | https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite | Checksum-matched model mirror reports Apache-2.0; confirm upstream model terms before release | Integrated as build-time download; final license verification pending |
+| ARCore Depth | Not yet integrated | https://developers.google.com/ar/develop/depth | Review exact SDK artifact terms when added | Planned |
 
-| Component / asset | Exact version or commit | Source URL | License | Required notices / obligations | Review status |
-|---|---|---|---|---|---|
-| AndroidX / Jetpack Compose | To be pinned | https://developer.android.com/jetpack | Review official artifact terms | Preserve required notices | Pending |
-| CameraX | To be pinned | https://developer.android.com/media/camera/camerax | Review exact artifact metadata | Preserve required notices | Pending |
-| Room | To be pinned | https://developer.android.com/training/data-storage/room | Review exact artifact metadata | Preserve required notices | Pending |
-| LiteRT (future) | To be pinned | https://github.com/google-ai-edge/LiteRT | Apache-2.0 stated by upstream project; verify selected release | Include Apache-2.0 license and notices as required | Not integrated |
+## Model and dataset obligations
 
-## Mandatory review
-
-1. Review the exact release/tag, not only the project homepage.
-2. Confirm the license applies to the code, model weights, datasets, and any downloaded assets separately.
-3. Check NOTICE files, attribution, patent terms, redistribution conditions, and source-disclosure obligations.
-4. Do not assume model weights share the source-code license.
-5. Record reviewer, date, and evidence before shipping.
-6. Re-check licenses when versions change.
+1. Model weights may have terms different from the inference library.
+2. Dataset image/annotation terms do not automatically match model terms.
+3. Record artifact URL, immutable version, checksum, attribution, and license evidence.
+4. Do not add personal videos or datasets without consent and provenance.
+5. Do not use a pretrained model's label name as evidence that it can recognize a visually different object class.
 
 This file is a review register, not legal advice.
