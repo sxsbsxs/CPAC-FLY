@@ -276,7 +276,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
-            val currentFrameIndex = VideoFrameTimeline.VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs)
+            val currentFrameIndex = VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs)
             Text(if (currentFrameIndex >= 0) "视频帧：${currentFrameIndex + 1} / ${frameTimesMs.size}" else "未能读取视频帧时间戳")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -292,7 +292,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 value = positionMs.toFloat().coerceIn(0f, videoDurationMs.coerceAtLeast(1L).toFloat()),
                 onValueChange = { positionMs = it.toLong() },
                 onValueChangeFinished = {
-                    nearestFrameIndex(frameTimesMs, positionMs).takeIf { it >= 0 }?.let { positionMs = frameTimesMs[it] }
+                    VideoFrameTimeline.nearestFrameIndex(frameTimesMs, positionMs).takeIf { it >= 0 }?.let { positionMs = frameTimesMs[it] }
                 },
                 valueRange = 0f..videoDurationMs.coerceAtLeast(1L).toFloat(),
                 enabled = videoDurationMs > 0L
