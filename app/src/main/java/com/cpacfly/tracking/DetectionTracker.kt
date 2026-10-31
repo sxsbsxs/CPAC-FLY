@@ -11,7 +11,8 @@ data class DetectionCandidate(
     val box: DetectionBox,
     val label: String,
     val score: Float,
-    val categoryIndex: Int
+    val categoryIndex: Int,
+    val sourceTrackingId: Int? = null
 )
 
 data class TrackedDetection(
@@ -32,7 +33,8 @@ class DetectionTracker(
         val id: Long,
         val box: DetectionBox,
         val label: String,
-        val missedFrames: Int
+        val missedFrames: Int,
+        val sourceTrackingId: Int?
     )
 
     private var nextId = 1L
@@ -46,7 +48,7 @@ class DetectionTracker(
 
         for (detection in detections.sortedByDescending { it.score }) {
             val candidate = unmatched
-                .filter { it.label == detection.label }
+                .filter { if (detection.sourceTrackingId != null) it.sourceTrackingId == detection.sourceTrackingId else it.sourceTrackingId == null && it.label == detection.label }
                 .maxByOrNull { iou(it.box, detection.box) }
             val overlap = candidate?.let { iou(it.box, detection.box) } ?: 0f
 
@@ -58,9 +60,9 @@ class DetectionTracker(
                     candidate.box.right * smoothing + detection.box.right * (1f - smoothing),
                     candidate.box.bottom * smoothing + detection.box.bottom * (1f - smoothing)
                 )
-                Track(candidate.id, box, detection.label, 0)
+                Track(candidate.id, box, detection.label, 0, detection.sourceTrackingId)
             } else {
-                Track(nextId++, detection.box, detection.label, 0)
+                Track(nextId++, detection.box, detection.label, 0, detection.sourceTrackingId)
             }
 
             currentTracks += track
