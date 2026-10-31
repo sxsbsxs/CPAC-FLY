@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
-fun CameraScreen(onBack: () -> Unit) {
+fun CameraScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasPermission by remember {
@@ -60,7 +60,8 @@ fun CameraScreen(onBack: () -> Unit) {
     }
     var permissionDenied by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("等待摄像头启动") }
-    var latestDetections by remember { mutableStateOf("尚无检测结果") }
+    var latestDetections by remember { mutableStateOf("等待图像分析") }
+    var liveDetectionCount by remember { mutableIntStateOf(0) }
     var cameraMotionText by remember { mutableStateOf("等待相机运动分析") }
     var fps by remember { mutableStateOf(0f) }
     var selectedQualityLabel by remember { mutableStateOf(context.getSharedPreferences("cpac_fly_settings", 0).getString("video_quality", "HD 720p") ?: "HD 720p") }
@@ -165,7 +166,6 @@ fun CameraScreen(onBack: () -> Unit) {
                                         }
                                     }
                                 }
-                                TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("返回") }
                             }
                         }
                         Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.62f), shape = MaterialTheme.shapes.small) {
@@ -178,6 +178,14 @@ fun CameraScreen(onBack: () -> Unit) {
                         }
                     }
                     Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.82f), shape = MaterialTheme.shapes.small) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("纸飞机识别状态", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelLarge)
+                                Text("专用模型：待完成本地权重验证；当前使用通用目标检测", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodySmall)
+                                Text(if (liveDetectionCount > 0) "实时画面：检测到 $liveDetectionCount 个动态目标（尚未确认是纸飞机）" else "实时画面：暂未检测到动态目标", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodySmall)
+                                Text("图像分析：%.1f FPS".format(fps), color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         if (flightActive && outOfViewCountdownMs > 0L) {
                             Surface(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f), shape = MaterialTheme.shapes.small) {
                                 Text("目标离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒后停止", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = androidx.compose.ui.graphics.Color.White)
@@ -272,11 +280,20 @@ fun CameraScreen(onBack: () -> Unit) {
             if (settingsExpanded) {
                 AlertDialog(
                     onDismissRequest = { settingsExpanded = false },
+                    colors = AlertDialogDefaults.colors(
+                        containerColor = androidx.compose.ui.graphics.Color.Black,
+                        titleContentColor = androidx.compose.ui.graphics.Color.White,
+                        textContentColor = androidx.compose.ui.graphics.Color.White
+                    ),
                     title = { Text("试飞设置") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("飞出画面自动停止：${autoStopSeconds.toInt()} 秒")
-                            Slider(value = autoStopSeconds, onValueChange = {
+                            Slider(value = autoStopSeconds, colors = SliderDefaults.colors(
+                                thumbColor = androidx.compose.ui.graphics.Color.White,
+                                activeTrackColor = androidx.compose.ui.graphics.Color.White,
+                                inactiveTrackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f)
+                            ), onValueChange = {
                                 autoStopSeconds = it
                                 autoStopSecondsRef.set(it.toInt())
                                 context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("out_of_view_seconds", it.toInt()).apply()
@@ -284,15 +301,15 @@ fun CameraScreen(onBack: () -> Unit) {
                             }, valueRange = 5f..120f, steps = 22, enabled = !flightActive)
                             Text("本次纸飞机")
                             Box {
-                                OutlinedButton(onClick = { aircraftProfiles = aircraftStore.all(); aircraftMenuExpanded = true }) { Text(selectedAircraft?.name ?: "不指定机型") }
-                                DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }) {
-                                    DropdownMenuItem(text = { Text("不指定机型") }, onClick = {
+                                OutlinedButton(onClick = { aircraftProfiles = aircraftStore.all(); aircraftMenuExpanded = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedAircraft?.name ?: "不指定机型") }
+                                DropdownMenu(expanded = aircraftMenuExpanded, onDismissRequest = { aircraftMenuExpanded = false }, containerColor = androidx.compose.ui.graphics.Color.Black) {
+                                    DropdownMenuItem(text = { Text("不指定机型", color = androidx.compose.ui.graphics.Color.White) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.White), onClick = {
                                         selectedAircraftId = null
                                         context.getSharedPreferences("cpac_fly_settings", 0).edit().remove("selected_aircraft_id").apply()
                                         aircraftMenuExpanded = false
                                     })
                                     aircraftProfiles.forEach { profile ->
-                                        DropdownMenuItem(text = { Text(profile.name) }, onClick = {
+                                        DropdownMenuItem(text = { Text(profile.name, color = androidx.compose.ui.graphics.Color.White) }, colors = MenuDefaults.itemColors(textColor = androidx.compose.ui.graphics.Color.White), onClick = {
                                             selectedAircraftId = profile.id
                                             context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("selected_aircraft_id", profile.id).apply()
                                             aircraftMenuExpanded = false
@@ -303,7 +320,7 @@ fun CameraScreen(onBack: () -> Unit) {
                             Text("录像保存在系统相册 Movies/CPAC FLY，不录制声音。", style = MaterialTheme.typography.bodySmall)
                         }
                     },
-                    confirmButton = { TextButton(onClick = { settingsExpanded = false }) { Text("完成") } }
+                    confirmButton = { TextButton(onClick = { settingsExpanded = false }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("完成") } }
                 )
             }
 
@@ -427,12 +444,13 @@ fun CameraScreen(onBack: () -> Unit) {
                                 }
                                 mainExecutor.execute {
                                     latestDetections = detectionSummary
+                                    liveDetectionCount = tracked.size
                                     cameraMotionText = if (motion.reliable) {
                                         "平移 Δx=%.3f、Δy=%.3f，置信度 %.2f".format(motion.shiftX, motion.shiftY, motion.confidence)
                                     } else {
                                         "画面纹理不足或估计不可靠（%.2f）".format(motion.confidence)
                                     }
-                                    status = "摄像头运行中 · ML Kit 本地动态目标追踪"
+                                    status = "摄像头运行中 · 通用目标检测（非纸飞机专用模型）"
                                     measuredFps?.let { fps = it }
                                 }
                             } catch (error: Throwable) {
