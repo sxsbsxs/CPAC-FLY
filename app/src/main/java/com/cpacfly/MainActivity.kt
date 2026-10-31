@@ -296,6 +296,11 @@ private fun SessionCard(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
             Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
+            if (session.releaseTimeMs != null && session.landingTimeMs != null) {
+                Text("已人工复核视频时间戳 · 出手 %.3f 秒 / 落地 %.3f 秒".format(
+                    session.releaseTimeMs / 1000.0, session.landingTimeMs / 1000.0
+                ), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+            }
             Text(if (session.videoUri != null) "已关联录像" else "未关联录像", style = MaterialTheme.typography.bodySmall)
             session.videoUri?.let { uri ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
