@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppBootstrap() {
-    var showCamera by remember { mutableStateOf(false) }
+    var showCamera by remember { mutableStateOf(true) }
     var showRecords by remember { mutableStateOf(false) }
     var showAircraft by remember { mutableStateOf(false) }
     var reviewSessionId by remember { mutableStateOf<String?>(null) }
