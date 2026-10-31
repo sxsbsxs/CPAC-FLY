@@ -116,7 +116,7 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
             TextButton(onClick = { sessions = store.all() }) { Text("刷新记录") }
             TextButton(enabled = sessions.isNotEmpty(), onClick = {
                 val csv = buildString {
-                    appendLine("id,created_at,duration_seconds,aircraft,release_ms,landing_ms,video_uri,note")
+                    appendLine("id,created_at,duration_seconds,aircraft,release_ms,landing_ms,video_uri,rating,evaluation,note")
                     sessions.forEach { item ->
                         val values = listOf(
                             item.id,
@@ -126,6 +126,8 @@ private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
                             item.releaseTimeMs?.toString().orEmpty(),
                             item.landingTimeMs?.toString().orEmpty(),
                             item.videoUri.orEmpty(),
+                            item.rating?.toString().orEmpty(),
+                            item.evaluation,
                             item.note
                         )
                         appendLine(values.joinToString(",") { value ->
@@ -389,6 +391,8 @@ private fun SessionCard(
             Text(DateFormat.getDateTimeInstance().format(Date(session.createdAt)), style = MaterialTheme.typography.titleSmall)
             Text("飞行时间：%.2f 秒".format(session.durationMs / 1000.0))
             session.aircraftName?.let { Text("纸飞机：$it", style = MaterialTheme.typography.bodySmall) }
+            session.rating?.let { score -> Text("飞行评价：${"★".repeat(score)}${"☆".repeat(5 - score)}", style = MaterialTheme.typography.bodySmall) }
+            if (session.evaluation.isNotBlank()) Text("评价：${session.evaluation}", style = MaterialTheme.typography.bodySmall)
             if (session.releaseTimeMs != null && session.landingTimeMs != null) {
                 Text("已人工复核视频时间戳 · 出手 %.3f 秒 / 落地 %.3f 秒".format(
                     session.releaseTimeMs / 1000.0, session.landingTimeMs / 1000.0
