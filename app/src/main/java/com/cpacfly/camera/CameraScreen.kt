@@ -110,14 +110,8 @@ fun CameraScreen(onBack: () -> Unit) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("实时试飞画面", style = MaterialTheme.typography.titleLarge)
-            OutlinedButton(onClick = onBack) { Text("返回") }
-        }
-
         if (!hasPermission) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -139,37 +133,53 @@ fun CameraScreen(onBack: () -> Unit) {
             }
 
 
-            Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("CPAC FLY", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = onBack) { Text("关闭") }
+
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("CPAC FLY", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.LightGray)) { Text("返回") }
                 }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                     Surface(
                         modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(10.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                        shape = MaterialTheme.shapes.large
+                        color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f),
+                        shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            when { isRecording -> "● 正在录像"; flightActive -> "正在计时"; else -> "准备就绪" },
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            when { isRecording -> "● 录像中"; flightActive -> "计时中"; else -> "准备开始" },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            color = androidx.compose.ui.graphics.Color.White,
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
                     if (flightActive && outOfViewCountdownMs > 0L) {
                         Surface(
                             modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(10.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            shape = MaterialTheme.shapes.large
+                            color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f),
+                            shape = MaterialTheme.shapes.small
                         ) {
-                            Text("目标离开画面 %.1f / %d 秒".format(outOfViewCountdownMs / 1000.0, autoStopSeconds.toInt()), modifier = Modifier.padding(10.dp))
+                            Text("目标已离开画面 · ${(outOfViewCountdownMs / 1000L).toInt()} 秒", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = androidx.compose.ui.graphics.Color.White)
                         }
                     }
                 }
-                Text("%.2f 秒".format(elapsedFlightMs / 1000.0), modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center, style = MaterialTheme.typography.displaySmall)
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("飞行时间", color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "%02d:%05.2f".format(elapsedFlightMs / 60_000L, (elapsedFlightMs % 60_000L) / 1000.0),
+                        color = androidx.compose.ui.graphics.Color.White,
+                        style = MaterialTheme.typography.displayLarge
+                    )
+                }
                 Button(
-                    modifier = Modifier.fillMaxWidth().height(58.dp),
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (flightActive) androidx.compose.ui.graphics.Color(0xFFB3261E) else androidx.compose.ui.graphics.Color(0xFF2E7D32),
+                        contentColor = androidx.compose.ui.graphics.Color.White
+                    ),
                     onClick = {
                         if (flightActive) {
                             elapsedFlightMs = SystemClock.elapsedRealtime() - flightStartMsRef.get()
@@ -197,41 +207,48 @@ fun CameraScreen(onBack: () -> Unit) {
                             flightActive = true
                         }
                     }
-                ) { Text(if (flightActive) "落地 · 结束计时" else "出手 · 开始计时", style = MaterialTheme.typography.titleMedium) }
+                ) {
+                    Text(if (flightActive) "停止计时并保存" else "开始计时", style = MaterialTheme.typography.titleLarge)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    TextButton(enabled = recordingAvailable || isRecording, onClick = {
-                        if (isRecording) {
-                            recording?.stop()
-                        } else {
-                            val capture = videoCapture ?: return@TextButton
-                            finalizedVideoUri = null
-                            finalizedVideoUriRef.set(null)
-                            val values = ContentValues().apply {
-                                put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
-                                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
-                            }
-                            val output = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(values).build()
-                            recording = capture.output.prepareRecording(context, output).start(ContextCompat.getMainExecutor(context)) { event ->
-                                if (event is VideoRecordEvent.Finalize) {
-                                    isRecording = false
-                                    if (!event.hasError()) {
-                                        finalizedVideoUri = event.outputResults.outputUri.toString()
-                                        finalizedVideoUriRef.set(finalizedVideoUri)
-                                        pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
-                                        status = "录像已保存到 Movies/CPAC FLY"
-                                    } else status = "录像保存失败：${event.error}"
-                                    recording = null
-                                    recordingRef.set(null)
+                    TextButton(
+                        enabled = recordingAvailable || isRecording,
+                        colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
+                        onClick = {
+                            if (isRecording) recording?.stop() else {
+                                val capture = videoCapture ?: return@TextButton
+                                finalizedVideoUri = null
+                                finalizedVideoUriRef.set(null)
+                                val values = ContentValues().apply {
+                                    put(MediaStore.Video.Media.DISPLAY_NAME, "CPAC_FLY_${System.currentTimeMillis()}.mp4")
+                                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CPAC FLY")
                                 }
+                                val output = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(values).build()
+                                recording = capture.output.prepareRecording(context, output).start(ContextCompat.getMainExecutor(context)) { event ->
+                                    if (event is VideoRecordEvent.Finalize) {
+                                        isRecording = false
+                                        if (!event.hasError()) {
+                                            finalizedVideoUri = event.outputResults.outputUri.toString()
+                                            finalizedVideoUriRef.set(finalizedVideoUri)
+                                            pendingSessionIdRef.get()?.let { sessionStore.attachVideo(it, finalizedVideoUri!!) }
+                                            status = "录像已保存到 Movies/CPAC FLY"
+                                        } else status = "录像保存失败：${event.error}"
+                                        recording = null
+                                        recordingRef.set(null)
+                                    }
+                                }
+                                recordingRef.set(recording)
+                                isRecording = true
+                                status = "正在录制视频（无声音）"
                             }
-                            recordingRef.set(recording)
-                            isRecording = true
-                            status = "正在录制视频（无声音）"
                         }
-                    }) { Text(if (isRecording) "停止录像" else "录制视频") }
-                    TextButton(onClick = { settingsExpanded = true }) { Text("设置 · ${selectedAircraft?.name ?: "未选机型"}") }
-                    if (!recordingAvailable) Text("设备不支持录像", style = MaterialTheme.typography.labelSmall)
+                    ) { Text(if (isRecording) "停止录像" else "录制视频") }
+                    TextButton(
+                        colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
+                        onClick = { settingsExpanded = true }
+                    ) { Text("设置") }
+                    if (!recordingAvailable) Text("录像不可用", color = androidx.compose.ui.graphics.Color.LightGray, style = MaterialTheme.typography.labelSmall)
                 }
             }
             if (settingsExpanded) {
