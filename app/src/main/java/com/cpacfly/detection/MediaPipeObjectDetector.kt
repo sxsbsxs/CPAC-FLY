@@ -3,6 +3,8 @@ package com.cpacfly.detection
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
+import java.io.File
+import java.nio.ByteBuffer
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -16,7 +18,7 @@ import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetector
  * specifically for paper airplanes, so "airplane" detections are only a
  * prototype signal and must not be presented as reliable paper-plane recognition.
  */
-class MediaPipeObjectDetector(context: Context) : AutoCloseable {
+class MediaPipeObjectDetector(context: Context, modelFile: File) : AutoCloseable {
 
     data class Detection(
         val box: RectF,
@@ -31,7 +33,7 @@ class MediaPipeObjectDetector(context: Context) : AutoCloseable {
         val options = ObjectDetector.ObjectDetectorOptions.builder()
             .setBaseOptions(
                 BaseOptions.builder()
-                    .setModelAssetPath(MODEL_ASSET)
+                    .setModelAssetBuffer(ByteBuffer.wrap(modelFile.readBytes()))
                     .build()
             )
             .setRunningMode(RunningMode.VIDEO)
@@ -77,7 +79,6 @@ class MediaPipeObjectDetector(context: Context) : AutoCloseable {
     }
 
     companion object {
-        const val MODEL_ASSET = "efficientdet_lite0.tflite"
         private const val MAX_RESULTS = 10
         private const val SCORE_THRESHOLD = 0.30f
     }
