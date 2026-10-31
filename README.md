@@ -51,6 +51,10 @@ Open this repository in a current stable Android Studio installation, allow Grad
 
 The source includes CameraX preview/frame analysis/video capture, the bundled ML Kit STREAM_MODE detector and tracking-ID-based target locking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. The latest changes must pass CI and the APK must be installed and verified on physical devices before being treated as a test release. A Gradle wrapper and physical-device installation/verification are still pending.
 
+## Device test checklist
+
+Follow [docs/TEST_CHECKLIST.md](docs/TEST_CHECKLIST.md) to evaluate camera tracking, auto-stop, video review, offline behavior, and CSV export on a real phone.
+
 ## Important measurement limitations
 
 A normal phone camera produces a 2D video view. Absolute ground-relative height requires reliable scale and scene geometry; camera-to-aircraft range is not the same as vertical height above ground. ARCore Depth can provide per-pixel depth estimates on supported devices, but quality depends on device capability, motion, range, and scene texture. When calibration or depth quality is insufficient, CPAC FLY must show relative trend or unavailable status rather than invent a precise metre value.
