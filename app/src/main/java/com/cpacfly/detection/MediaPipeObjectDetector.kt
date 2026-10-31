@@ -33,7 +33,7 @@ class MediaPipeObjectDetector(context: Context, modelFile: File) : AutoCloseable
         val options = ObjectDetector.ObjectDetectorOptions.builder()
             .setBaseOptions(
                 BaseOptions.builder()
-                    .setModelAssetBuffer(ByteBuffer.wrap(modelFile.readBytes()))
+                    .setModelAssetBuffer(ByteBuffer.allocateDirect(modelFile.length().toInt()).apply { put(modelFile.readBytes()); rewind() })
                     .build()
             )
             .setRunningMode(RunningMode.VIDEO)
