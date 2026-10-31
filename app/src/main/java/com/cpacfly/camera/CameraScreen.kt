@@ -33,7 +33,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cpacfly.detection.MediaPipeObjectDetector
-import java.io.File
 import com.cpacfly.tracking.DetectionTracker
 import com.cpacfly.vision.GlobalMotionEstimator
 import com.cpacfly.tracking.DetectionBox
@@ -49,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
-fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
+fun CameraScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasPermission by remember {
@@ -261,16 +260,16 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                         else "设备不支持预览、分析和录像同时运行。",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Text("飞出镜头自动停止依赖当前通用模型的 airplane 检测，正式纸飞机识别与真机验证尚未完成。", style = MaterialTheme.typography.bodySmall)
+                    Text("离画自动停止依据动态目标的连续追踪状态；请尽量让画面中只有本次试飞目标。模型不会判断目标是否一定是纸飞机。", style = MaterialTheme.typography.bodySmall)
                 }
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("通用模型检测结果", style = MaterialTheme.typography.titleMedium)
+                    Text("动态目标追踪结果", style = MaterialTheme.typography.titleMedium)
                     Text(latestDetections, style = MaterialTheme.typography.bodyMedium)
                     Text("手持跟拍运动估计：$cameraMotionText", style = MaterialTheme.typography.bodySmall)
                     Text(
-                        "当前模型识别 COCO 通用类别，并非纸飞机专用模型。即使出现 airplane 标签，也不能视为已可靠识别纸飞机。",
+                        "ML Kit 为连续帧中的物体分配追踪 ID；类别标签为粗分类，不代表纸飞机专用识别。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -317,13 +316,11 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                                     (((pixel shr 16 and 0xff) * 299 + (pixel shr 8 and 0xff) * 587 + (pixel and 0xff) * 114) / 1000)
                                 }
                                 val motion = motionEstimator.estimate(gray, 128, 96)
-                                val detector = modelFile?.let { file ->
-                                    detectorRef.updateAndGet { existing ->
-                                        existing ?: MediaPipeObjectDetector(context.applicationContext, file)
-                                    }
+                                val detector = detectorRef.updateAndGet { existing ->
+                                    existing ?: MediaPipeObjectDetector(context.applicationContext)
                                 }
                                 val timestampMs = image.imageInfo.timestamp / 1_000_000L
-                                val detections = detector?.detect(frameBitmap, timestampMs).orEmpty()
+                                val detections = detector.detect(frameBitmap, timestampMs)
                                 val tracked = tracker.update(detections.map { detection ->
                                     DetectionCandidate(
                                         box = DetectionBox(
@@ -336,12 +333,12 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                                     )
                                 })
 
-                                val airplaneVisible = tracked.any {
-                                    it.detection.label.equals("airplane", ignoreCase = true)
-                                }
-                                if (airplaneVisible) targetWasSeenRef.set(true)
+                                // ML Kit tracks generic moving objects, not paper-airplane semantics.
+                                // Treat visible tracked objects as the current timing target.
+                                val targetVisible = tracked.isNotEmpty()
+                                if (targetVisible) targetWasSeenRef.set(true)
                                 if (flightActiveRef.get() && targetWasSeenRef.get()) {
-                                    val shouldStop = outOfViewController.onFrame(!airplaneVisible, timestampMs)
+                                    val shouldStop = outOfViewController.onFrame(!targetVisible, timestampMs)
                                     val missingMs = outOfViewController.missingDurationMs(timestampMs) ?: 0L
                                     mainExecutor.execute {
                                         outOfViewCountdownMs = missingMs
@@ -359,7 +356,7 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                                                 finalizedVideoUriRef.get()?.let { uri -> sessionStore.attachVideo(savedId, uri) }
                                                 recordingRef.getAndSet(null)?.stop()
                                                 recording = null
-                                                status = "纸飞机连续离开画面达到 ${autoStopSecondsRef.get()} 秒，已自动停止并保存试飞"
+                                                status = "追踪目标连续离开画面达到 ${autoStopSecondsRef.get()} 秒，已自动停止并保存试飞"
                                             }
                                         }
                                     }
@@ -368,7 +365,7 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                                 }
 
                                 val detectionSummary = if (tracked.isEmpty()) {
-                                    if (modelFile == null) "未安装 AI 模型：当前为手动计时模式" else "当前帧没有检测到 COCO 目标"
+                                    "当前帧未检测到可追踪目标"
                                 } else {
                                     tracked.sortedByDescending { it.detection.score }
                                         .take(5)
@@ -391,7 +388,7 @@ fun CameraScreen(onBack: () -> Unit, modelFile: File?) {
                                     } else {
                                         "画面纹理不足或估计不可靠（%.2f）".format(motion.confidence)
                                     }
-                                    status = if (modelFile != null) "摄像头运行中 · 本地 AI 推理" else "摄像头运行中 · 手动模式（AI 模型未安装）"
+                                    status = "摄像头运行中 · ML Kit 本地动态目标追踪"
                                     measuredFps?.let { fps = it }
                                 }
                             } catch (error: Throwable) {
