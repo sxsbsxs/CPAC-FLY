@@ -59,6 +59,7 @@ class FlightTimingAnalyzer(
     private var accumulatedCameraX = 0.0
     private var accumulatedCameraY = 0.0
     private var lastTimestamp = -1L
+    private var previousPoint: Point? = null
     private var releaseRun = mutableListOf<Point>()
     private var landingRun = mutableListOf<Point>()
     private var releaseEvent: TimingEvent? = null
@@ -89,6 +90,8 @@ class FlightTimingAnalyzer(
         val x = if (mode == CaptureMode.HANDHELD_FOLLOW) observation.centerX - accumulatedCameraX else observation.centerX
         val y = if (mode == CaptureMode.HANDHELD_FOLLOW) observation.centerY - accumulatedCameraY else observation.centerY
         val point = Point(observation.mediaTimeMs, x, y, observation.nearGroundEvidence)
+        val currentSpeed = speed(previousPoint, point)
+        previousPoint = point
 
         if (phase == TimingPhase.WAITING_FOR_RELEASE) {
             if (baseline.size < 5) {
@@ -98,8 +101,7 @@ class FlightTimingAnalyzer(
             val anchorX = baseline.map { it.x }.average()
             val anchorY = baseline.map { it.y }.average()
             val displacement = hypot(point.x - anchorX, point.y - anchorY)
-            val speed = speed(point)
-            if (displacement >= releaseDisplacement && speed >= minimumReleaseSpeedPerSecond) {
+            if (displacement >= releaseDisplacement && currentSpeed >= minimumReleaseSpeedPerSecond) {
                 releaseRun += point
                 if (releaseRun.size >= releaseFramesRequired) {
                     val candidateTime = releaseRun.first().timeMs
@@ -125,11 +127,11 @@ class FlightTimingAnalyzer(
             return snapshot("等待纸飞机持续离手运动")
         }
 
-        if (phase == TimingPhase.IN_FLIGHT || phase == TimingPhase.LANDING_CANDIDATE) {
+        if (phase == TimingPhase.IN_FLIGHT || phase == TimingPhase.NEEDS_REVIEW || phase == TimingPhase.LANDING_CANDIDATE) {
             recent.addLast(point)
             while (recent.size > landingFramesRequired) recent.removeFirst()
             val nearGround = recent.count { it.nearGround } >= landingFramesRequired
-            val lowMotion = recent.size >= landingFramesRequired && speed(point) <= landingSpeedPerSecond
+            val lowMotion = recent.size >= landingFramesRequired && currentSpeed <= landingSpeedPerSecond
             if (nearGround && lowMotion) {
                 if (phase != TimingPhase.LANDING_CANDIDATE) landingRun.clear()
                 phase = TimingPhase.LANDING_CANDIDATE
@@ -164,14 +166,15 @@ class FlightTimingAnalyzer(
         accumulatedCameraX = 0.0
         accumulatedCameraY = 0.0
         lastTimestamp = -1L
+        previousPoint = null
         releaseEvent = null
         landingEvent = null
         handheldCompensationSamples = 0
         phase = TimingPhase.WAITING_FOR_RELEASE
     }
 
-    private fun speed(point: Point): Double {
-        val previous = recent.lastOrNull() ?: baseline.lastOrNull() ?: return 0.0
+    private fun speed(previous: Point?, point: Point): Double {
+        previous ?: return 0.0
         val seconds = (point.timeMs - previous.timeMs) / 1000.0
         if (seconds <= 0.0) return 0.0
         return hypot(point.x - previous.x, point.y - previous.y) / seconds
