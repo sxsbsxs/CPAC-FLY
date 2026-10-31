@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                     when {
                         showCamera -> CameraScreen(onBack = { showCamera = false })
                         reviewSessionId != null -> ReviewScreen(sessionId = reviewSessionId!!, onBack = { reviewSessionId = null })
-                        showRecords -> RecordsScreen(onBack = { showRecords = false })
+                        showRecords -> RecordsScreen(onBack = { showRecords = false }, onOpenReview = { reviewSessionId = it })
                         showAircraft -> AircraftScreen(onBack = { showAircraft = false })
                         else -> HomeScreen(
                             onStartFlight = { showCamera = true },
@@ -95,7 +95,7 @@ private fun HomeScreen(onStartFlight: () -> Unit, onOpenRecords: () -> Unit, onO
 }
 
 @Composable
-private fun RecordsScreen(onBack: () -> Unit) {
+private fun RecordsScreen(onBack: () -> Unit, onOpenReview: (String) -> Unit) {
     val context = LocalContext.current
     val store = remember { FlightSessionStore(context) }
     var sessions by remember { mutableStateOf(store.all()) }
@@ -114,7 +114,7 @@ private fun RecordsScreen(onBack: () -> Unit) {
                         session = session,
                         onSaveNote = { note -> store.updateNote(session.id, note); sessions = store.all() },
                         onDelete = { store.delete(session.id); sessions = store.all() },
-                        onReview = { reviewSessionId = session.id }
+                        onReview = { onOpenReview(session.id) }
                     )
                 }
             }
