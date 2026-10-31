@@ -150,7 +150,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                 var qualityMenu by remember { mutableStateOf(false) }
                                 var fpsMenu by remember { mutableStateOf(false) }
                                 Box {
-                                    TextButton(onClick = { qualityMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedQualityLabel) }
+                                    TextButton(enabled = !isRecording && !flightActive, onClick = { qualityMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text(selectedQualityLabel) }
                                     DropdownMenu(expanded = qualityMenu, onDismissRequest = { qualityMenu = false }) {
                                         listOf("UHD 4K", "FHD 1080p", "HD 720p", "SD 480p").forEach { label ->
                                             DropdownMenuItem(text = { Text(label) }, onClick = { selectedQualityLabel = label; context.getSharedPreferences("cpac_fly_settings", 0).edit().putString("video_quality", label).apply(); qualityMenu = false })
@@ -158,7 +158,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                     }
                                 }
                                 Box {
-                                    TextButton(onClick = { fpsMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("${selectedFps} fps") }
+                                    TextButton(enabled = !isRecording && !flightActive, onClick = { fpsMenu = true }, colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) { Text("${selectedFps} fps") }
                                     DropdownMenu(expanded = fpsMenu, onDismissRequest = { fpsMenu = false }) {
                                         listOf(24, 30, 60).forEach { rate ->
                                             DropdownMenuItem(text = { Text("${rate} fps") }, onClick = { selectedFps = rate; context.getSharedPreferences("cpac_fly_settings", 0).edit().putInt("video_fps", rate).apply(); fpsMenu = false })
