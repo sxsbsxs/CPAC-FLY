@@ -14,7 +14,9 @@ data class FlightSession(
     val releaseTimeMs: Long? = null,
     val landingTimeMs: Long? = null,
     val aircraftId: String? = null,
-    val aircraftName: String? = null
+    val aircraftName: String? = null,
+    val rating: Int? = null,
+    val evaluation: String = ""
 )
 
 class FlightSessionStore(context: Context) {
@@ -36,7 +38,9 @@ class FlightSessionStore(context: Context) {
                     releaseTimeMs = item.takeIf { !it.isNull("releaseTimeMs") }?.optLong("releaseTimeMs"),
                     landingTimeMs = item.takeIf { !it.isNull("landingTimeMs") }?.optLong("landingTimeMs"),
                     aircraftId = item.optString("aircraftId").takeIf { it.isNotBlank() && it != "null" },
-                    aircraftName = item.optString("aircraftName").takeIf { it.isNotBlank() && it != "null" }
+                    aircraftName = item.optString("aircraftName").takeIf { it.isNotBlank() && it != "null" },
+                    rating = item.takeIf { !it.isNull("rating") }?.optInt("rating")?.coerceIn(1, 5),
+                    evaluation = item.optString("evaluation", "")
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAt }
@@ -84,6 +88,19 @@ class FlightSessionStore(context: Context) {
     }
 
     @Synchronized
+    fun updateEvaluation(sessionId: String, rating: Int, evaluation: String): Boolean {
+        val current = all()
+        if (current.none { it.id == sessionId }) return false
+        write(current.map { session ->
+            if (session.id == sessionId) session.copy(
+                rating = rating.coerceIn(1, 5),
+                evaluation = evaluation.take(MAX_EVALUATION_LENGTH)
+            ) else session
+        })
+        return true
+    }
+
+    @Synchronized
     fun delete(sessionId: String): Boolean {
         val current = all()
         val updated = current.filterNot { it.id == sessionId }
@@ -106,6 +123,8 @@ class FlightSessionStore(context: Context) {
                 put("landingTimeMs", session.landingTimeMs ?: JSONObject.NULL)
                 put("aircraftId", session.aircraftId)
                 put("aircraftName", session.aircraftName)
+                put("rating", session.rating ?: JSONObject.NULL)
+                put("evaluation", session.evaluation)
             })
         }
         prefs.edit().putString(KEY_SESSIONS, array.toString()).apply()
@@ -115,5 +134,6 @@ class FlightSessionStore(context: Context) {
         private const val KEY_SESSIONS = "items"
         private const val MAX_SESSIONS = 200
         private const val MAX_NOTE_LENGTH = 1000
+        private const val MAX_EVALUATION_LENGTH = 1000
     }
 }
