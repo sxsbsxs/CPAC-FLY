@@ -5,15 +5,15 @@
 - Kotlin：应用主语言
 - Jetpack Compose：界面
 - CameraX：预览、图像分析、录像
-- MediaPipe Tasks Vision 1.1.0：Android 端目标检测 API
-- EfficientDet-Lite0（MediaPipe 官方 float32 v1，COCO 预训练）：第一阶段通用检测基线，首次启动下载并校验 SHA-256，保存在应用私有目录供离线复用
+- Google ML Kit Object Detection 17.0.2：Android 端目标检测 API
+- ML Kit bundled generic object detector：使用 STREAM_MODE 连续视频追踪，SDK 在连续帧间分配 tracking ID；模型随应用打包，离线可用
 - ARCore Depth API（可选能力）：支持设备上的逐帧深度图；运行时检查能力，不作为所有设备的硬依赖
 - Room：试飞、飞机档案和事件数据
 - MediaStore / app-specific storage：视频文件
 - OpenCV：按需用于相机标定、图像几何和视觉追踪；引入前审查版本与许可证
 
 CameraX：https://developer.android.com/media/camera/camerax
-MediaPipe Object Detector：https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
+Google ML Kit Object Detector：https://developers.google.com/edge/mediapipe/solutions/vision/object_detector
 ARCore Depth：https://developers.google.com/ar/develop/depth
 
 ## 分层
@@ -22,7 +22,7 @@ ARCore Depth：https://developers.google.com/ar/develop/depth
 - `camera/`：CameraX 生命周期、录像与帧采集
 - `calibration/`：相机内参、畸变、地面参考面和场地尺度标定
 - `depth/`：ARCore 能力探测、深度图采集、深度置信/有效性检查
-- `detection/`：MediaPipe Object Detector 封装、预处理、检测结果
+- `detection/`：Google ML Kit Object Detector 封装、预处理、检测结果
 - `tracking/`：跨帧目标关联与置信度；人工点选目标作为通用模型失效时的兜底
 - `altitude/`：飞机检测区域深度采样、相机坐标到地面相对高度转换、质量评估
 - `flightmetrics/`：高度滤波、下降率和剩余时间预测
@@ -76,10 +76,10 @@ CameraX frame + capture timestamp → detector → tracker/manual ROI fallback �
 - 试飞记录可关联用户建立的纸飞机档案；拍摄前可选择机型，手动结束和离镜自动停止均保存机型 ID/名称。
 
 
-## 首次启动模型安装与离线运行
+## ML Kit 模型与离线运行
 
-- 首次启动检查 `filesDir/models/efficientdet_lite0.tflite`；存在且 SHA-256 匹配则直接复用，不访问网络。
-- 不存在或校验失败时，从固定版本的官方模型地址下载到临时文件，校验通过后原子重命名为正式模型文件。
-- 模型推理在 Android 设备本地执行，不使用推理 API、不上传图像或视频。首次下载需要网络；下载完成后检测可离线运行。
-- 下载失败时允许进入手动拍摄/计时模式，并可在后续启动重试。
+- 使用 `com.google.mlkit:object-detection:17.0.2` 随应用打包的检测模型，无需首次启动下载。
+- 模型文件随应用安装，不需要模型下载器或网络权限。
+- 目标检测与追踪在 Android 设备本地执行，不使用推理 API、不上传图像或视频；安装后可离线运行。
+- 模型随应用安装，不存在首次模型下载失败状态。
 - 当前模型仍是 COCO 通用模型，不能代表折纸飞机专用识别。
