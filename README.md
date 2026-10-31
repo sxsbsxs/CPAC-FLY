@@ -49,7 +49,7 @@ ml/                  Dataset, training, evaluation, and model metadata (no large
 
 Open this repository in a current stable Android Studio installation, allow Gradle sync, then run the `app` configuration on an Android device or emulator.
 
-The source includes CameraX preview/frame analysis/video capture, a MediaPipe detector wrapper, a checksum-pinned EfficientDet-Lite0 model download task, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. A recent CI run previously succeeded, but the latest changes must pass CI and the APK must be installed and verified on physical devices before being treated as a test release. A Gradle wrapper and physical-device installation/verification are still pending.
+The source includes CameraX preview/frame analysis/video capture, a MediaPipe detector wrapper, a first-launch checksum-verified EfficientDet-Lite0 model installer, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. A recent CI run previously succeeded, but the latest changes must pass CI and the APK must be installed and verified on physical devices before being treated as a test release. A Gradle wrapper and physical-device installation/verification are still pending.
 
 ## Important measurement limitations
 
