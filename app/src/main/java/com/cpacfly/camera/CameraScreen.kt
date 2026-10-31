@@ -329,7 +329,8 @@ fun CameraScreen(onBack: () -> Unit) {
                                         ),
                                         label = detection.label,
                                         score = detection.score,
-                                        categoryIndex = detection.categoryIndex
+                                        categoryIndex = detection.categoryIndex,
+                                        sourceTrackingId = detection.trackingId
                                     )
                                 })
 
