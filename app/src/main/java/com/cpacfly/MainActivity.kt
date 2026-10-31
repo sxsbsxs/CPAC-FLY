@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -230,7 +232,7 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("录像逐帧复核", style = MaterialTheme.typography.titleLarge)
             TextButton(onClick = onBack) { Text("返回") }
@@ -243,6 +245,10 @@ private fun ReviewScreen(sessionId: String, onBack: () -> Unit) {
                 Image(bitmap.asImageBitmap(), "录像当前帧", Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
             } ?: Text("正在读取视频帧，或当前录像无法解码。")
             Text("当前位置：%.3f 秒 / %.3f 秒".format(positionMs / 1000.0, videoDurationMs / 1000.0))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = positionMs > 0L, onClick = { positionMs = (positionMs - 33L).coerceAtLeast(0L) }) { Text("前一帧（约）") }
+                OutlinedButton(enabled = positionMs < videoDurationMs, onClick = { positionMs = (positionMs + 33L).coerceAtMost(videoDurationMs) }) { Text("后一帧（约）") }
+            }
             Slider(
                 value = positionMs.toFloat().coerceIn(0f, videoDurationMs.coerceAtLeast(1L).toFloat()),
                 onValueChange = { positionMs = it.toLong() },
