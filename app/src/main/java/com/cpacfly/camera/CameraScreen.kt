@@ -350,7 +350,7 @@ fun CameraScreen(onBack: () -> Unit) {
                                                 flightActive = false
                                                 targetWasSeenRef.set(false)
                                                 outOfViewCountdownMs = 0L
-                                                val savedId = sessionStore.add(elapsedFlightMs)
+                                                val savedId = sessionStore.add(elapsedFlightMs, aircraftId = selectedAircraftId, aircraftName = selectedAircraft?.name)
                                                 pendingSessionId = savedId
                                                 pendingSessionIdRef.set(savedId)
                                                 finalizedVideoUriRef.get()?.let { uri -> sessionStore.attachVideo(savedId, uri) }
