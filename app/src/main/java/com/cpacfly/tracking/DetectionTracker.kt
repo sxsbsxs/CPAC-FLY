@@ -1,16 +1,27 @@
 package com.cpacfly.tracking
 
-import android.graphics.RectF
-import com.cpacfly.detection.MediaPipeObjectDetector
+data class DetectionBox(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float
+)
+
+data class DetectionCandidate(
+    val box: DetectionBox,
+    val label: String,
+    val score: Float,
+    val categoryIndex: Int
+)
 
 data class TrackedDetection(
     val trackId: Long,
-    val detection: MediaPipeObjectDetector.Detection
+    val detection: DetectionCandidate
 )
 
 /**
- * Lightweight frame-to-frame IoU association for detector output.
- * It is a generic object tracker, not a paper-airplane recognizer.
+ * Lightweight IoU association for consecutive detector frames.
+ * Generic object tracking only; this does not recognize paper airplanes.
  */
 class DetectionTracker(
     private val minimumIou: Float = 0.15f,
@@ -19,7 +30,7 @@ class DetectionTracker(
 ) {
     private data class Track(
         val id: Long,
-        val box: RectF,
+        val box: DetectionBox,
         val label: String,
         val missedFrames: Int
     )
@@ -28,7 +39,7 @@ class DetectionTracker(
     private var tracks = mutableListOf<Track>()
 
     @Synchronized
-    fun update(detections: List<MediaPipeObjectDetector.Detection>): List<TrackedDetection> {
+    fun update(detections: List<DetectionCandidate>): List<TrackedDetection> {
         val unmatched = tracks.toMutableList()
         val currentTracks = mutableListOf<Track>()
         val visible = mutableListOf<TrackedDetection>()
@@ -41,22 +52,19 @@ class DetectionTracker(
 
             val track = if (candidate != null && overlap >= minimumIou) {
                 unmatched.remove(candidate)
-                val smoothed = RectF(
+                val box = DetectionBox(
                     candidate.box.left * smoothing + detection.box.left * (1f - smoothing),
                     candidate.box.top * smoothing + detection.box.top * (1f - smoothing),
                     candidate.box.right * smoothing + detection.box.right * (1f - smoothing),
                     candidate.box.bottom * smoothing + detection.box.bottom * (1f - smoothing)
                 )
-                Track(candidate.id, smoothed, detection.label, 0)
+                Track(candidate.id, box, detection.label, 0)
             } else {
-                Track(nextId++, RectF(detection.box), detection.label, 0)
+                Track(nextId++, detection.box, detection.label, 0)
             }
 
             currentTracks += track
-            visible += TrackedDetection(
-                track.id,
-                detection.copy(box = RectF(track.box))
-            )
+            visible += TrackedDetection(track.id, detection.copy(box = track.box))
         }
 
         tracks = (currentTracks + unmatched.map { it.copy(missedFrames = it.missedFrames + 1) })
@@ -71,14 +79,14 @@ class DetectionTracker(
         nextId = 1L
     }
 
-    private fun iou(a: RectF, b: RectF): Float {
+    private fun iou(a: DetectionBox, b: DetectionBox): Float {
         val left = maxOf(a.left, b.left)
         val top = maxOf(a.top, b.top)
         val right = minOf(a.right, b.right)
         val bottom = minOf(a.bottom, b.bottom)
         val intersection = maxOf(0f, right - left) * maxOf(0f, bottom - top)
-        val areaA = maxOf(0f, a.width()) * maxOf(0f, a.height())
-        val areaB = maxOf(0f, b.width()) * maxOf(0f, b.height())
+        val areaA = maxOf(0f, a.right - a.left) * maxOf(0f, a.bottom - a.top)
+        val areaB = maxOf(0f, b.right - b.left) * maxOf(0f, b.bottom - b.top)
         val union = areaA + areaB - intersection
         return if (union <= 0f) 0f else intersection / union
     }
