@@ -4,14 +4,14 @@
 
 CPAC FLY aims to help users record flights, review video, understand flight paths, estimate ground-relative altitude and descent trends, and improve hang-time through repeatable training.
 
-> **Project status:** early development. CameraX preview and on-device generic object detection are connected, with generic frame-to-frame tracking and a manual flight timer. CI unit tests and Debug APK assembly pass. The current pretrained detector is a generic COCO baseline, not a paper-airplane-specific model; real-device behavior and paper-airplane recognition are not yet validated.
+> **Project status:** early development. CameraX preview/frame analysis, optional CameraX video capture with MediaStore output, generic frame-to-frame tracking, manual flight timing, and local flight-session history are implemented. The latest code still requires CI and physical-device verification. The current pretrained detector is a generic COCO baseline, not a paper-airplane-specific model; real-device behavior and paper-airplane recognition are not yet validated.
 
 ## First release scope
 
 - Phone's built-in camera only (external cameras are a future extension).
-- CameraX rear-camera preview and live frame analysis (video recording is still pending).
+- CameraX rear-camera preview, live frame analysis, and local video recording to Movies/CPAC FLY when the device supports the combined use cases.
 - Flight session and paper-aircraft records stored locally.
-- A manual start/landing flight timer (session persistence and automatic event detection are still pending).
+- A manual start/landing flight timer with local session persistence (automatic event detection is still pending).
 - Live estimated ground-relative altitude, descent rate, remaining-flight-time range, and confidence/quality status.
 - Video review, slow-motion playback, 2D image-plane trajectory, altitude and descent-rate plots.
 - On-device generic object-detection baseline using MediaPipe EfficientDet-Lite0, plus IoU-based generic object tracking; paper-airplane-specific recognition remains unvalidated.
@@ -45,7 +45,7 @@ ml/                  Dataset, training, evaluation, and model metadata (no large
 
 Open this repository in a current stable Android Studio installation, allow Gradle sync, then run the `app` configuration on an Android device or emulator.
 
-The source includes CameraX preview/frame analysis, a MediaPipe detector wrapper, a checksum-pinned EfficientDet-Lite0 model download task, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. [Download the latest Debug APK artifact from the successful Actions run](https://github.com/sxsbsxs/CPAC-FLY/actions/runs/41175256437) (artifact retention is temporary). A Gradle wrapper and physical-device installation/verification are still pending.
+The source includes CameraX preview/frame analysis/video capture, a MediaPipe detector wrapper, a checksum-pinned EfficientDet-Lite0 model download task, generic object tracking, a manual timer, and pure-Kotlin descent/remaining-time estimators with unit tests. GitHub Actions has successfully run unit tests and assembled a Debug APK. [Download the latest Debug APK artifact from the successful Actions run](https://github.com/sxsbsxs/CPAC-FLY/actions/runs/41175256437) (artifact retention is temporary). A Gradle wrapper and physical-device installation/verification are still pending.
 
 ## Important measurement limitations
 
