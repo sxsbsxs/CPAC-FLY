@@ -25,8 +25,6 @@ class MlKitStreamObjectDetector(context: Context) : AutoCloseable {
     private val detector = ObjectDetection.getClient(
         ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
-            .enableMultipleObjects()
-            .enableClassification()
             .build()
     )
 
@@ -35,12 +33,11 @@ class MlKitStreamObjectDetector(context: Context) : AutoCloseable {
         require(timestampMs >= 0L) { "timestampMs must be non-negative" }
         val result = Tasks.await(detector.process(InputImage.fromBitmap(bitmap, 0)))
         return result.map { item ->
-            val label = item.labels.firstOrNull()
             Detection(
                 box = RectF(item.boundingBox),
-                label = label?.text?.takeIf(String::isNotBlank) ?: "unknown",
-                score = label?.confidence ?: 0.5f,
-                categoryIndex = label?.index ?: -1,
+                label = "动态目标",
+                score = 1.0f,
+                categoryIndex = -1,
                 trackingId = item.trackingId
             )
         }
