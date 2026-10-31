@@ -66,8 +66,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.9.6")
 
-    // On-device object detection; inference runs locally and does not require an account.
-    implementation("com.google.mediapipe:tasks-vision:1.1.0")
+    // Bundled ML Kit object detection with STREAM_MODE tracking IDs; fully on-device.
+    implementation("com.google.mlkit:object-detection:17.0.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
